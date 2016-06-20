@@ -47,26 +47,29 @@ def threadedDone(server):
     dif = newMinNum - server.minNum
     if (dif < 0):
       raise Exception("Shouldn't reached here")
-    else if (dif > 0):
+    elif (dif > 0):
       server.minNum = newMinNum
       for i in [1, dif]:  # Suppose this is executed for dif times
         del server.listValue[0]
         del server.listRoundNum[0]
         del server.listPendingValue[0]
         del server.listPendingToLead[0]
-def threadedMaintainence(server)
+def threadedMaintainence(server):
   while (True):
     sleep(2)  # number of seconds slept over next check, I randomly picked "2" without further examination. In reality, this number should depend on the number of servers as well as network condition
     with server.seqLock:
       for i in [0, len(server.listValue) - 1]:  # suppose this is executed for len(server.listValue) times
-        if (server.listValue[i] == "" && server.listPendingValue != ""):
-          """tStart = """client_thread('tStart' + server.number + ' ' + (i + server.minNum) + ' by maintainence', threadedStart, server, i + server.minNum).start()
+        if (server.listValue[i] == "" and server.listPendingValue != ""):
+          """tStart = """
+          client_thread('tStart' + str(server.number) + ' ' 
+              + str(i + server.minNum) + ' by maintainence', threadedStart, server, i + server.minNum).start()
           #tStart.start()
 def threadedStart(server, seq):
   """print server.number"""
   #server.listRoundNum[seq - server.minNum] += 1
   with server.seqLock:
-    if (server.listPendingToLead[seq - server.minNum] > 0) return  # full fix
+    if (server.listPendingToLead[seq - server.minNum] > 0): 
+      return  # full fix
     server.listPendingToLead[seq - server.minNum] = 2
     roundNum = server.listRoundNum[seq - server.minNum] + 1
   flag = True  # flag about whether to repeat
@@ -89,7 +92,7 @@ def threadedStart(server, seq):
       if (individualMin > server.listKnownMin[i]):  # some remote server sends his Done message
         if server.listKnownMin[i] is server.minNum:
           server.listKnownMin[i] = individualMin
-          tDone = client_thread('tDone' + server.number + ' ' + individualMin, threadedDone, server""", seq""")
+          tDone = client_thread('tDone' + str(server.number) + ' ' + str(individualMin), threadedDone, server)
           tDone.start()
         else:
           server.listKnownMin[i] = individualMin
@@ -148,7 +151,7 @@ def threadedStart(server, seq):
     if (individualMin > server.listKnownMin[i]):  # some remote server sends his Done message
       if server.listKnownMin[i] is server.minNum:
         server.listKnownMin[i] = individualMin
-        tDone = client_thread('tDone' + server.number + ' ' + individualMin, threadedDone, server""", seq""")
+        tDone = client_thread('tDone' + str(server.number) + ' ' + str(individualMin), threadedDone, serverd)
         tDone.start()
       else:
         server.listKnownMin[i] = individualMin
@@ -201,13 +204,13 @@ class Paxos:
         return False
     else:
       return True
-  def Make(self, peers, me):
+  def make(self, peers, me):
     if (self.number != -1):
       return False
     self.number = me
     self.listServerAddress = peers
     self.amount = len(peers)
-    if (me < 0 || me >= self.amount):
+    if (me < 0 or me >= self.amount):
       return False
     for i in [0, self.amount - 1]:  # Suppose this is executed for (len(peers)) times
       self.listKnownMin.append(0)
@@ -230,13 +233,13 @@ class Paxos:
       """
     # Reused code from LHP
     self.server = SimpleXMLRPCServer(
-      ("""HTTP_HOST_NAME"""listServerAddress[me]"""this should be my address, or LOCALHOST to be exact""", """int(PRIMARY_PORT_NUMBER)""" 8388"""This should be some various ports for different applications"""),
+      (listServerAddress[me],  PORT),
       requestHandler=PrimaryServer.RequestHandler
     )
     self.server.register_introspection_functions()
     self.server.register_instance(_RPCFuncs(self))
     return True
-  def Start(self, seq, value)
+  def start(self, seq, value):
     with self.seqLock:
       while (self.minNum + len(self.listValue) <= seq):
         self.listValue.append("")
@@ -252,23 +255,23 @@ class Paxos:
         tMaintainence.start()
         return True
       return False
-  def Min(self):
+  def min(self):
     return self.minNum
-  def Max(self):
+  def max(self):
     with self.seqLock:
       return self.minNum + len(self.listValue) - 1
-  def Done(self, seq):
+  def done(self, seq):
     if (self.number == -1):
       return False
     if (seq > self.listKnownMin[self.number]):
       if (self.listKnownMin[self.number] == self.minNum):
         self.listKnownMin[self.number] = seq
-        tDone = client_thread('tDone' + self.number + ' ' + seq, threadedDone, self""", seq""")
+        tDone = client_thread('tDone' + str(self.number) + ' ' + str(seq), threadedDone, self)
         tDone.start()
       else:
         self.listKnownMin[self.number] = seq
     return True
-  def Status(self, seq):
+  def status(self, seq):
     with self.seqLock:
       if (seq < self.minNum) :
         return False, ""
@@ -280,7 +283,7 @@ class Paxos:
         return True, self.listValue[seq - self.minNum]
   class RequestHandler(SimpleXMLRPCRequestHandler):
     rpc_paths = ('/RPC2',)
-  class client_thread(threading.Thread):  # Reused from Google's test.py
+  class client_thread(Thread):  # Reused from Google's test.py
     def __init__(self, name, run_func, *args):
       threading.Thread.__init__(self)
       self.name = name

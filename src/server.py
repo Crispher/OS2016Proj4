@@ -19,10 +19,10 @@ class Operation:
     self.return_value = return_value
     self.executed = True
         
-class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPReqestHandler):
+class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
   # these functions runs in a seperate thread from the server thread
   def __init__(self):
-    BaseHTTPReqestHandler.__init__(self)
+    BaseHTTPRequestHandler.__init__(self)
     self.kv_paxos_server = server
   
   ''' propose a paxos event on value op, returns the seq that finally 
@@ -83,8 +83,8 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPReqestHandler):
     pass
         
 class KvPaxosServer:
-  def __init__(self, config):
-    self.px = Paxos.Make()
+  def __init__(self):
+    self.px = Paxos.make(HOSTS_LIST, ME)
     self.http_server = BaseHTTPServer.HTTPServer(
         (HOST, int(PORT)), MyHTTPRequestHandler)
     self.kvstore = Store()

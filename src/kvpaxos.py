@@ -20,27 +20,40 @@ class _RPCFuncs:  # Reused LPH's structure
     with self.server.seqLock:
       if self.server.listPendingToLead[seq-self.server.minNum] is True:
       # I'm trying to lead too
-        return False, "", -2
+        return False, "", -2, self.server.listKnownMin[self.server.number]
       if (roundNum <= self.server.listRoundNum[seq-self.server.minNum]):  # validity check of seq needed
       # the round number is old
-        return False, "", self.server.listRoundNum[seq-self.server.minNum]
+        return False, "", self.server.listRoundNum[seq-self.server.minNum], self.server.listKnownMin[self.server.number]
       if (self.server.listValue[seq-self.server.minNum] != ""):
       # seq is already decided, so there's no need for another round
-        return False, self.server.listValue[seq-self.server.minNum], -1
+        return False, self.server.listValue[seq-self.server.minNum], -1, self.server.listKnownMin[self.server.number]
       returnRoundNum = self.server.listRoundNum[seq-self.server.minNum]
       self.server.listRoundNum[seq-self.server.minNum] = roundNum
-      return True, self.server.listPendingValue, returnRoundNum
+      return True, self.server.listPendingValue, returnRoundNum, self.server.listKnownMin[self.server.number]
   def response_to_proposed_value(self, seq, roundNum, proposedVal): # Stage 2b in the slides
     if (roundNum < self.server.listRoundNum[seq-self.server.minNum]):
     # the round number is old
-      return False
+      return False, self.server.listKnownMin[self.server.number]
     self.server.listPendingValue = proposedVal
     self.server.listRoundNum[seq-self.server.minNum] = roundNum
-    return True
+    return True, self.server.listKnownMin[self.server.number]
   def response_to_decision(self, seq, decidedVal):  # Stage 3 in the slides
     # Maybe adding some assertations?
     self.server.listValue[seq-self.server.minNum] = decidedVal
     return True
+def threadedDone(server):
+  with server.seqLock:  # the whole session should be wrapped in locks
+    newMinNum = min(server.listKnownMin)
+    dif = newMinNum - server.minNum
+    if (dif < 0):
+      raise Exception("Shouldn't reached here")
+    else if (dif > 0):
+      server.minNum = newMinNum
+      for i in [1, dif]:  # Suppose this is executed for dif times
+        del server.listValue[0]
+        del server.listRoundNum[0]
+        del server.listPendingValue[0]
+        del server.listPendingToLead[0]
 def threadedStart(server, seq):
   """print server.number"""
   #server.listRoundNum[seq - server.minNum] += 1
@@ -62,9 +75,16 @@ def threadedStart(server, seq):
       if server.checkListServer(i) is False:
         continue
       try:
-        result, prePropose, returnRoundNum = server.listServer[i].response_to_proposed_lead(seq, roundNum)
+        result, prePropose, returnRoundNum, individualMin = server.listServer[i].response_to_proposed_lead(seq, roundNum)
       except Exception, e:
         continue  # in case remote server is unreachable, continue
+      if (individualMin > server.listKnownMin[i]):  # some remote server sends his Done message
+        if server.listKnownMin[i] is server.minNum:
+          server.listKnownMin[i] = individualMin
+          tDone = client_thread('tDone' + server.number + ' ' + individualMin, threadedDone, server""", seq""")
+          tDone.start()
+        else:
+          server.listKnownMin[i] = individualMin
       if result is True:
         trueReply += 1
         if (returnRoundNum > highestPrevRound):
@@ -110,11 +130,18 @@ def threadedStart(server, seq):
     if server.checkListServer(i) is False:
       continue
     try:
-      result = server.listServer[i].response_to_proposed_value(seq, roundNum, proposedVal)
+      result, individualMin = server.listServer[i].response_to_proposed_value(seq, roundNum, proposedVal)
     except Exception, e:
       continue  # in case remote server is unreachable, continue
     if result is True:
       trueReply += 1
+    if (individualMin > server.listKnownMin[i]):  # some remote server sends his Done message
+      if server.listKnownMin[i] is server.minNum:
+        server.listKnownMin[i] = individualMin
+        tDone = client_thread('tDone' + server.number + ' ' + individualMin, threadedDone, server""", seq""")
+        tDone.start()
+      else:
+        server.listKnownMin[i] = individualMin
   if ((trueReply + 1) * 2 <= server.amount):  
     return 
   # It has been decided
@@ -167,7 +194,7 @@ class Paxos:
     self.amount = len(peers)
     if (me < 0 || me >= self.amount):
       return False
-    for i in [0, self.amount - 1]:  # Suppose this is exercised for (len(peers)) times
+    for i in [0, self.amount - 1]:  # Suppose this is executed for (len(peers)) times
       self.listKnownMin.append(0)
       self.listServer.append(None)
       #self.CheckListServer(i)  # not necessary
@@ -210,26 +237,32 @@ class Paxos:
       return False
   def Min(self):
     return self.minNum
-  
   def Max(self):
-    return self.minNum + len(self.listValue) - 1
-  
+    with self.seqLock:
+      return self.minNum + len(self.listValue) - 1
   def Done(self, seq):
-    # some other handler
+    if (self.number == -1):
+      return False
+    if (seq > self.listKnownMin[self.number]):
+      if (self.listKnownMin[self.number] == self.minNum):
+        self.listKnownMin[self.number] = seq
+        tDone = client_thread('tDone' + self.number + ' ' + seq, threadedDone, self""", seq""")
+        tDone.start()
+      else:
+        self.listKnownMin[self.number] = seq
     return True
   def Status(self, seq):
-    if (seq < self.minNum) :
-      return False, ""
-    if (seq - self.minNum >= len(self.listValue)) :
-      return False, ""
-    if (self.listValue[seq - self.minNum] == "") :
-      return False, ""
-    else:
-      return True, self.listValue[seq - self.minNum]
-      
+    with self.seqLock:
+      if (seq < self.minNum) :
+        return False, ""
+      if (seq - self.minNum >= len(self.listValue)) :
+        return False, ""
+      if (self.listValue[seq - self.minNum] == "") :
+        return False, ""
+      else:
+        return True, self.listValue[seq - self.minNum]
   class RequestHandler(SimpleXMLRPCRequestHandler):
     rpc_paths = ('/RPC2',)
-    
   class client_thread(threading.Thread):  # Reused from Google's test.py
     def __init__(self, name, run_func, *args):
       threading.Thread.__init__(self)

@@ -204,7 +204,11 @@ class Paxos:
         return False
     else:
       return True
-  def make(self, peers, me):
+  def make(peers, me)
+    p = Paxos()
+    p._make1()
+    return p
+  def _make1(self, peers, me):
     if (self.number != -1):
       return False
     self.number = me

@@ -18,7 +18,7 @@ class _RPCFuncs:  # Reused LPH's structure
     return True
   def response_to_proposed_lead(self, seq, roundNum):  # Stage 1b in the slides
     with self.server.seqLock:
-      if self.server.listPendingToLead[seq-self.server.minNum] is True:
+      if self.server.listPendingToLead[seq-self.server.minNum] is 2:
       # I'm trying to lead too
         return False, "", -2, self.server.listKnownMin[self.server.number]
       if (roundNum <= self.server.listRoundNum[seq-self.server.minNum]):  # validity check of seq needed
@@ -54,12 +54,20 @@ def threadedDone(server):
         del server.listRoundNum[0]
         del server.listPendingValue[0]
         del server.listPendingToLead[0]
+def threadedMaintainence(server)
+  while (True):
+    sleep(2)  # number of seconds slept over next check, I randomly picked "2" without further examination. In reality, this number should depend on the number of servers as well as network condition
+    with server.seqLock:
+      for i in [0, len(server.listValue) - 1]:  # suppose this is executed for len(server.listValue) times
+        if (server.listValue[i] == "" && server.listPendingValue != ""):
+          """tStart = """client_thread('tStart' + server.number + ' ' + (i + server.minNum) + ' by maintainence', threadedStart, server, i + server.minNum).start()
+          #tStart.start()
 def threadedStart(server, seq):
   """print server.number"""
   #server.listRoundNum[seq - server.minNum] += 1
   with server.seqLock:
-    if server.listPendingToLead[seq - server.minNum] is True return  # partial fix
-    server.listPendingToLead[seq - server.minNum] = True
+    if (server.listPendingToLead[seq - server.minNum] > 0) return  # full fix
+    server.listPendingToLead[seq - server.minNum] = 2
     roundNum = server.listRoundNum[seq - server.minNum] + 1
   flag = True  # flag about whether to repeat
   while(Flag):
@@ -97,7 +105,7 @@ def threadedStart(server, seq):
         if (prePropose != ""):
           with server.seqLock:
             server.listValue[seq - server.minNum] = prePropose
-            server.listPendingToLead[seq - server.minNum] = False
+            server.listPendingToLead[seq - server.minNum] = 0
           return
         else:
           if returnRoundNum is -2:  # Somebody else is trying to lead
@@ -110,9 +118,11 @@ def threadedStart(server, seq):
             flag = True
             break
   with server.seqLock:
-    server.listPendingToLead[seq - server.minNum] = False
-  if ((trueReply + 1) * 2 <= server.amount):  
-    return 
+    if ((trueReply + 1) * 2 <= server.amount):  
+      server.listPendingToLead[seq - server.minNum] = 0
+      return 
+    else:
+      server.listPendingToLead[seq - server.minNum] = 1
   # I'm OK to lead
   with server.seqLock:
     if (highestPrevRound > server.listRoundNum[seq - server.minNum]):
@@ -143,7 +153,9 @@ def threadedStart(server, seq):
       else:
         server.listKnownMin[i] = individualMin
   if ((trueReply + 1) * 2 <= server.amount):  
-    return 
+    with server.seqLock:
+      server.listPendingToLead[seq - server.minNum] = 0
+      return 
   # It has been decided
   with server.seqLock:
     server.listValue[seq - server.minNum] = proposedVal
@@ -158,6 +170,9 @@ def threadedStart(server, seq):
       server.listServer[i].response_to_decision(seq, proposedVal)
     except Exception, e:
       continue  # in case remote server is unreachable, continue
+  with server.seqLock:
+    server.listPendingToLead[seq - server.minNum] = 0
+  return 
 class Paxos:
   def __init__ (self):
     self.number = -1
@@ -227,12 +242,14 @@ class Paxos:
         self.listValue.append("")
         self.listRoundNum.append(-1)
         self.listPendingValue.append("")
-        self.listPendingToLead.append(False)
+        self.listPendingToLead.append(0)
         #self.listLocks.appen(Lock())
       if self.listPendingValue[seq - self.minNum] is "":
         self.listPendingValue[seq - self.minNum] = value
         tStart = client_thread('tStart' + self.number + ' ' + seq, threadedStart, self, seq)
         tStart.start()
+        tMaintainence = client_thread('tMaintainence' + self.number, threadedMaintainence, self)
+        tMaintainence.start()
         return True
       return False
   def Min(self):

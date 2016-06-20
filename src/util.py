@@ -4,7 +4,7 @@ import json
 with open('conf/settings.conf') as data_file:
   data = json.load(data_file)
 
-PORT = data['port']
+PORT = int(data['port'])
 data.pop('port')
 node_id = sys.argv[1]
 HOST = data[node_id]

@@ -204,10 +204,12 @@ class Paxos:
         return False
     else:
       return True
-  def make(peers, me)
+  @staticmethod
+  def make(peers, me):
     p = Paxos()
-    p._make1()
+    p._make1(peers, me)
     return p
+  
   def _make1(self, peers, me):
     if (self.number != -1):
       return False
@@ -237,8 +239,8 @@ class Paxos:
       """
     # Reused code from LHP
     self.server = SimpleXMLRPCServer(
-      (listServerAddress[me],  PORT),
-      requestHandler=PrimaryServer.RequestHandler
+      (self.listServerAddress[me],  PORT),
+      requestHandler=Paxos.RequestHandler
     )
     self.server.register_introspection_functions()
     self.server.register_instance(_RPCFuncs(self))

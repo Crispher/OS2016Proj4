@@ -15,10 +15,33 @@ class Operation:
     self.key = key
     self.value = value
     self.executed = False
-
+    self.return_value = False
+    
   def done(self, return_value):
     self.return_value = return_value
     self.executed = True
+    
+  def __eq__(self, other):
+    return self.op_type == other.op_type and self.key == other.key and self.value == other.value
+  
+  def encode(self):
+    s = {
+          'op_type':self.op_type, 
+          'key':self.key,
+          'value':self.value,
+          'executed':self.executed,
+          'return_value':self.return_value
+        }
+    print json.dumps(s)
+    return json.dumps(s)
+  
+  @staticmethod
+  def decode(jstr):
+    d = json.loads(jstr)
+    op = Operation(d['op_type'], d['key'], d['value'])
+    op.executed = d['executed']
+    op.return_value = d['return_value']
+    return op
         
 class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
   # these functions runs in a seperate thread from the server thread
@@ -35,17 +58,17 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     while True:
       seq = self.kv_server.px.max() + 1
       print 'sssssssssstttttttttttttaaaaaaaaaaaarrrrrrrrrrrrrrrrttttttttttttt', seq
-      self.kv_server.px.start(seq, op)
+      assert op is not None
+      self.kv_server.px.start(seq, op.encode())
       sleep_time = 0.01
       decided, op_value = self.kv_server.px.status(seq)
       while not decided:
         time.sleep(sleep_time)
         sleep_time = max(sleep_time*2, 1)
         decided, op_value = self.kv_server.px.status(seq)
-      if op_value == op:
-        break 
-    decided, op_value = self.kv_server.px.status(seq)
-    print decided, seq, 'ooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo'
+      if Operation.decode(op_value) == op:
+        print 'break'
+        break
     return seq
     
   def do_HEAD(self):
@@ -79,7 +102,7 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         # wrap an operation and call paxos 
         seq = self.paxos_consensus(op)
         print 'seq=', seq
-        success, value = self.kv_server.execute(seq, op)
+        success, value = self.kv_server.execute(seq)
         self.wfile.write(generate_response(success, value))
         return
     except Exception, e:
@@ -155,12 +178,13 @@ class KvPaxosServer:
         # the operations is done by other threads already, check the log directly
         return operation_log[seq].return_value
       while True:
-        decided, op = self.px.status(seq)
+        decided, op_jstr = self.px.status(seq)
         print seq, decided
         if decided:
           break 
         else:
           time.sleep(1)
+      op = Operation.decode(op_jstr)
       assert decided
       if op.op_type == 'GET':
         success, value = self.kvstore.get(op.key)

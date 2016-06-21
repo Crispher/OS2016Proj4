@@ -8,7 +8,8 @@ if ME == 1:
     b, v = px.status(0)
     print b
     if b:
-        break
+      print 'dddddddddeeeeeeeeeeeecccccccccciiiiiiiiiiiddddddddeeeeeeeeeedd'
+      break
     time.sleep(1)
     
   px.start(1, 2)
@@ -16,7 +17,8 @@ if ME == 1:
     b, v = px.status(0)
     print b
     if b:
-        break
+      print 'dddddddddeeeeeeeeeeeecccccccccciiiiiiiiiiiddddddddeeeeeeeeeedd'
+      break
     time.sleep(1)
     
   print 'finish'

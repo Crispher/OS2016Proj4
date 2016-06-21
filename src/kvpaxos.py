@@ -8,6 +8,7 @@ from SimpleXMLRPCServer import SimpleXMLRPCServer, SimpleXMLRPCRequestHandler
 from util import *
 from store import Store
 import sys
+import time
 
 
 
@@ -73,7 +74,7 @@ def threadedStart(server, seq):
     server.listPendingToLead[seq - server.minNum] = 2
     roundNum = server.listRoundNum[seq - server.minNum] + 1
   flag = True  # flag about whether to repeat
-  while(Flag):
+  while(flag):
     flag = False
     trueReply = 0
     highestPrevRound = -1
@@ -255,9 +256,9 @@ class Paxos:
         #self.listLocks.appen(Lock())
       if self.listPendingValue[seq - self.minNum] is "":
         self.listPendingValue[seq - self.minNum] = value
-        tStart = client_thread('tStart' + self.number + ' ' + seq, threadedStart, self, seq)
+        tStart = client_thread('tStart' + str(self.number) + ' ' + str(seq), threadedStart, self, seq)
         tStart.start()
-        tMaintainence = client_thread('tMaintainence' + self.number, threadedMaintainence, self)
+        tMaintainence = client_thread('tMaintainence' + str(self.number), threadedMaintainence, self)
         tMaintainence.start()
         return True
       return False
@@ -289,12 +290,13 @@ class Paxos:
         return True, self.listValue[seq - self.minNum]
   class RequestHandler(SimpleXMLRPCRequestHandler):
     rpc_paths = ('/RPC2',)
-  class client_thread(Thread):  # Reused from Google's test.py
-    def __init__(self, name, run_func, *args):
-      threading.Thread.__init__(self)
-      self.name = name
-      self.run_func = run_func
-      self.args = args
-    def run(self):
-      result = self.run_func(*self.args)
-      self.result = result
+
+class client_thread(Thread):  # Reused from Google's test.py
+  def __init__(self, name, run_func, *args):
+    Thread.__init__(self)
+    self.name = name
+    self.run_func = run_func
+    self.args = args
+  def run(self):
+    result = self.run_func(*self.args)
+    self.result = result

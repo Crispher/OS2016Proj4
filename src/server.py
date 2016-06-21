@@ -6,6 +6,7 @@ from util import *
 from store import Store
 from kvpaxos import *
 import sys
+import time
 
 
 class Operation:
@@ -21,9 +22,9 @@ class Operation:
         
 class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
   # these functions runs in a seperate thread from the server thread
-  def __init__(self):
-    BaseHTTPRequestHandler.__init__(self)
-    self.kv_paxos_server = server
+  def __init__(self, *args):
+    self.kv_server = kv_paxos_server
+    BaseHTTPServer.BaseHTTPRequestHandler.__init__(self, *args)
   
   ''' propose a paxos event on value op, returns the seq that finally 
       currently uniqueness of each request is not taken care of.
@@ -31,14 +32,14 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
   def paxos_consensus(self, op):
     # get the returned value from paxos protocol
     while True:
-      seq = server.px.max() + 1
-      server.px.start(op)
+      seq = self.kv_server.px.max() + 1
+      self.kv_server.px.start(seq, op)
       sleep_time = 0.01
-      decided, op_value = server.px.status(seq)
+      decided, op_value = self.kv_server.px.status(seq)
       while not decided:
         time.sleep(sleep_time)
-        time = max(time*2, 1)
-        decided, op_value = server.px.status(seq)
+        sleep_time = max(sleep_time*2, 1)
+        decided, op_value = self.kv_server.px.status(seq)
       if op_value == op:
         break 
     return seq
@@ -54,33 +55,59 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     try:
       if self.path[:4] == '/kvm':
         if self.path == COUNT_PATH:
-          cnt = self.kv_paxos_server.kvstore.countkey()
+          cnt = self.kv_server.kvstore.countkey()
           self.wfile.write('{"result":"%d"}' % cnt)
         elif self.path == DUMP_PATH:
-          pairs = self.kv_paxos_server.kvstore.dump()
+          log('dump')
+          pairs = self.kv_server.kvstore.dump()
           self.wfile.write(pairs)
         elif self.path == SHUTDOWN_PATH:
-          self.kv_paxos_server.handle_shutdown()
+          self.wfile.write('preparing to shutdown')
+          self.kv_server.handle_shutdown()
         else:
           pass
+        log('a')
         return
       else:
         key = self.path.split(GET_PATH + '?key=')[1]
         op = Operation('GET', key)
         assert (GET_PATH in self.path)
+        # wrap an operation and call paxos 
+        seq = self.paxos_consensus(op)
+        success, value = self.server.execute(seq, op)
+        self.wfile.write(generate_response(success, value))
+        return
     except Exception, e:
       self._error_handle(e)
-
-    # wrap an operation and call paxos 
-    seq = paxos_consensus(op)
-    success, value = self.server.execute(seq, op)
-    self.wfile.write(generate_response(success, value))
+      return
+    assert False
     
   def do_POST(self):
-    pass
+    self.do_HEAD()
+    # self.wfile.write('{ \"result\" : \"not yet implemented\" }')
+    try:
+      length = int(self.headers.getheader('content-length'))
+      field_data = self.rfile.read(length)
+      fields = parse_qs(field_data)
+      key, value = fields.get('key')[0], fields.get('value', [None])[0]
+      if INSERT_PATH in self.path and value is not None:
+        op = Operation('INSERT', key, value)
+      elif UPDATE_PATH in self.path and value is not None:
+        op = Operation('UPDATE', key, value)
+      elif DELETE_PATH in self.path:
+        op = Operation('DELETE', key)
+      else:
+        assert False
+      seq = self.paxos_consensus(op)
+      success, value = self.server.execute(seq, op)
+      self.wfile.write(generate_response(success, value))
+      
+    except IOError, e:
+      self._error_handle(e)
+      
     
   def _error_handle(self, e):
-    pass
+    print e
         
 class KvPaxosServer:
   def __init__(self):
@@ -99,8 +126,12 @@ class KvPaxosServer:
     
   def start(self):
     log("HTTP Server Starts - %s:%s" % (HOST, PORT))
-    while self.keep_running:
-      self.http_server.handle_request()
+    try:
+      while self.keep_running:
+        self.http_server.handle_request()
+    except KeyboardInterrupt:
+      print 'interrupted'
+      sys.exit(0)
     sys.exit(0)
   
   ''' this function is only called by the handler class'''
@@ -144,10 +175,9 @@ class KvPaxosServer:
     return self.store.dump()
 
   def handle_shutdown(self):
-    log('shutting down')
     self.keep_running = False
     self.http_server.server_close()
 
   
-server = KvPaxosServer()
-server.start()
+kv_paxos_server = KvPaxosServer()
+kv_paxos_server.start()

@@ -14,7 +14,7 @@ HOSTS_LIST = [str(data['n' + ('%02i'%i)]) for i in range(1, n_hosts+1)]
 
 
 
-DEBUG = False
+DEBUG = True
 
 GET_PATH = '/kv/get'
 INSERT_PATH = '/kv/insert'

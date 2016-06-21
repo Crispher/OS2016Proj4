@@ -18,7 +18,9 @@ class _RPCFuncs:  # Reused LPH's structure
   def test(self):
     return True
   def response_to_proposed_lead(self, seq, roundNum):  # Stage 1b in the slides
+    print 'server numbered ' + str(self.server.number) + ' responding to proposed lead'
     with self.server.seqLock:
+      print 'server numbered ' + str(self.server.number) + ' responding to proposed lead, lock acquired'
       if self.server.listPendingToLead[seq-self.server.minNum] is 2:
       # I'm trying to lead too
         return False, "", -2, self.server.listKnownMin[self.server.number]
@@ -84,12 +86,16 @@ def threadedStart(server, seq):
       if (i == server.number):
         continue
       """  # not necessary, since this is done in checkListServer part
+      print "Trying to connect to server " + str(i)
       if server.checkListServer(i) is False:
         continue
+      print "Decided to connect to server " + str(i)
       try:
         result, prePropose, returnRoundNum, individualMin = server.listServer[i].response_to_proposed_lead(seq, roundNum)
       except Exception, e:
+        print "Exception returned from server " + str(i)
         continue  # in case remote server is unreachable, continue
+      print "Successfully got reply from server " + str(i)
       if (individualMin > server.listKnownMin[i]):  # some remote server sends his Done message
         if server.listKnownMin[i] is server.minNum:
           server.listKnownMin[i] = individualMin

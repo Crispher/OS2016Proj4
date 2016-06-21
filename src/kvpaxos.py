@@ -21,17 +21,26 @@ class _RPCFuncs:  # Reused LPH's structure
     print 'server numbered ' + str(self.server.number) + ' responding to proposed lead'
     with self.server.seqLock:
       print 'server numbered ' + str(self.server.number) + ' responding to proposed lead, lock acquired'
+      while (self.server.minNum + len(self.server.listValue) <= seq):
+        self.server.listValue.append("")
+        self.server.listRoundNum.append(-1)
+        self.server.listPendingValue.append("")
+        self.server.listPendingToLead.append(0)
       if self.server.listPendingToLead[seq-self.server.minNum] is 2:
       # I'm trying to lead too
+        #returnVal = [False, "", -2, self.server.listKnownMin[self.server.number]]
         return False, "", -2, self.server.listKnownMin[self.server.number]
       if (roundNum <= self.server.listRoundNum[seq-self.server.minNum]):  # validity check of seq needed
       # the round number is old
+        #returnVal = [False, "", self.server.listRoundNum[seq-self.server.minNum], self.server.listKnownMin[self.server.number]]
         return False, "", self.server.listRoundNum[seq-self.server.minNum], self.server.listKnownMin[self.server.number]
       if (self.server.listValue[seq-self.server.minNum] != ""):
       # seq is already decided, so there's no need for another round
+        #returnVal = [False, self.server.listValue[seq-self.server.minNum], -1, self.server.listKnownMin[self.server.number]]
         return False, self.server.listValue[seq-self.server.minNum], -1, self.server.listKnownMin[self.server.number]
       returnRoundNum = self.server.listRoundNum[seq-self.server.minNum]
       self.server.listRoundNum[seq-self.server.minNum] = roundNum
+      #returnVal = [True, self.server.listPendingValue[seq-self.server.minNum], returnRoundNum, self.server.listKnownMin[self.server.number]]
       return True, self.server.listPendingValue[seq-self.server.minNum], returnRoundNum, self.server.listKnownMin[self.server.number]
   def response_to_proposed_value(self, seq, roundNum, proposedVal): # Stage 2b in the slides
     if (roundNum < self.server.listRoundNum[seq-self.server.minNum]):
@@ -93,10 +102,23 @@ def threadedStart(server, seq):
         continue
       print "Decided to connect to server " + str(i)
       try:
+        """
+        returnVal = server.listServer[i].response_to_proposed_lead(seq, roundNum)
+        result = returnVal[0]
+        prePropose = returnVal[1]
+        returnRoundNum = returnVal[2]
+        individualMin = returnVal[3]
+        """
         result, prePropose, returnRoundNum, individualMin = server.listServer[i].response_to_proposed_lead(seq, roundNum)
-      except Exception, e:
-        print "Exception returned from server " + str(i)
-        continue  # in case remote server is unreachable, continue
+      #except Exception, e:
+       # print "Exception returned from server " + str(i)
+        #continue  # in case remote server is unreachable, continue
+      except xmlrpclib.ProtocolError as err:
+        print "A protocol error occurred"
+        print "URL: %s" % err.url
+        print "HTTP/HTTPS headers: %s" % err.headers
+        print "Error code: %d" % err.errcode
+        print "Error message: %s" % err.errmsg
       print "Successfully got reply from server " + str(i)
       if (individualMin > server.listKnownMin[i]):  # some remote server sends his Done message
         if server.listKnownMin[i] is server.minNum:

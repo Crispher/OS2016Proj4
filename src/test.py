@@ -20,7 +20,6 @@ def insert(http_conn, key, value):
     http_conn.request('POST', INSERT_PATH, bstr(key, value))
     r = http_conn.getresponse()
     rstr = r.read(MAX_RESPONSE_LENGTH)
-    print rstr, '=========='
     return json.loads(rstr.decode('utf-8'))
 
 def get(http_conn, key):
@@ -66,3 +65,6 @@ http_conn = HTTPConnection(HOST, PORT)
 # print shutdown(http_conn)
 
 print insert(http_conn, 'a', '1')
+print get(http_conn, 'a')
+
+http_conn.close()

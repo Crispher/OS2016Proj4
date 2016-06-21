@@ -31,8 +31,10 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
   '''
   def paxos_consensus(self, op):
     # get the returned value from paxos protocol
+    print 'iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii'
     while True:
       seq = self.kv_server.px.max() + 1
+      print 'sssssssssstttttttttttttaaaaaaaaaaaarrrrrrrrrrrrrrrrttttttttttttt', seq
       self.kv_server.px.start(seq, op)
       sleep_time = 0.01
       decided, op_value = self.kv_server.px.status(seq)
@@ -43,7 +45,7 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
       if op_value == op:
         break 
     decided, op_value = self.kv_server.px.status(seq)
-    print decided, seq, 'ooo'
+    print decided, seq, 'ooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo'
     return seq
     
   def do_HEAD(self):
@@ -76,6 +78,7 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         assert (GET_PATH in self.path)
         # wrap an operation and call paxos 
         seq = self.paxos_consensus(op)
+        print 'seq=', seq
         success, value = self.kv_server.execute(seq, op)
         self.wfile.write(generate_response(success, value))
         return

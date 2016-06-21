@@ -42,6 +42,8 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         decided, op_value = self.kv_server.px.status(seq)
       if op_value == op:
         break 
+    decided, op_value = self.kv_server.px.status(seq)
+    print decided, seq, 'ooo'
     return seq
     
   def do_HEAD(self):
@@ -98,8 +100,11 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         op = Operation('DELETE', key)
       else:
         assert False
+      print 'aaa'
       seq = self.paxos_consensus(op)
-      success, value = self.kv_server.execute(seq, op)
+      print 'seq=', seq, 'decided', self.kv_server.px.status(seq)[0]
+      success, value = self.kv_server.execute(seq)
+      print success, value
       self.wfile.write(generate_response(success, value))
       
     except IOError, e:
@@ -141,11 +146,19 @@ class KvPaxosServer:
     while self.executed_paxos_no < seq:
       self.execute(self.executed_paxos_no)
     
+    
     with self.lock:
       if seq < self.executed_paxos_no:
         # the operations is done by other threads already, check the log directly
         return operation_log[seq].return_value
-      
+      while True:
+        decided, op = self.px.status(seq)
+        print seq, decided
+        if decided:
+          break 
+        else:
+          time.sleep(1)
+      assert decided
       if op.op_type == 'GET':
         success, value = self.kvstore.get(op.key)
       elif op.op_type == 'INSERT':

@@ -10,7 +10,8 @@ import time
 
 
 class Operation:
-  def __init__(self, op_type, key, value=None):
+  def __init__(self, requestid, op_type, key, value=None):
+    self.requestid = requestid
     self.op_type = op_type
     self.key = key
     self.value = value
@@ -22,27 +23,33 @@ class Operation:
     self.executed = True
     
   def __eq__(self, other):
-    return self.op_type == other.op_type and self.key == other.key and self.value == other.value
+    return self.requestid == other.requestid and  self.op_type == other.op_type and self.key == other.key and self.value == other.value
   
   def encode(self):
-    s = {
-          'op_type':self.op_type, 
-          'key':self.key,
-          'value':self.value,
-          'executed':self.executed,
-          'return_value':self.return_value
-        }
-    print json.dumps(s)
-    return json.dumps(s)
+    try:
+      s = {
+            'requestid':self.requestid,
+            'op_type':self.op_type, 
+            'key':self.key,
+            'value':self.value,
+            'executed':self.executed,
+            'return_value':self.return_value
+          }
+      print json.dumps(s)
+      return json.dumps(s)
+    except Exception, e:
+      print 'encode error', e
   
   @staticmethod
   def decode(jstr):
-    d = json.loads(jstr)
-    op = Operation(d['op_type'], d['key'], d['value'])
-    op.executed = d['executed']
-    op.return_value = d['return_value']
-    return op
-        
+    try:
+      d = json.loads(jstr)
+      op = Operation(d['requestid'], d['op_type'], d['key'], d['value'])
+      op.executed = d['executed']
+      op.return_value = d['return_value']
+      return op
+    except Exception, e:
+      print 'decode error', e
 class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
   # these functions runs in a seperate thread from the server thread
   def __init__(self, *args):
@@ -80,6 +87,7 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
   def do_GET(self):
     self.do_HEAD()
     try:
+      print self.path
       if self.path[:4] == '/kvm':
         if self.path == COUNT_PATH:
           cnt = self.kv_server.kvstore.countkey()
@@ -96,8 +104,11 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         log('a')
         return
       else:
-        key = self.path.split(GET_PATH + '?key=')[1]
-        op = Operation('GET', key)
+        print self.path[8:]
+        args = parse_qs(self.path[8:])
+        print 'qqq'
+        key, requestid = args['key'][0], args['requestid'][0]
+        op = Operation(requestid, 'GET', key)
         assert (GET_PATH in self.path)
         # wrap an operation and call paxos 
         seq = self.paxos_consensus(op)
@@ -106,6 +117,7 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.wfile.write(generate_response(success, value))
         return
     except Exception, e:
+      print 'errrr'
       self._error_handle(e)
       return
     assert False
@@ -117,13 +129,13 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
       length = int(self.headers.getheader('content-length'))
       field_data = self.rfile.read(length)
       fields = parse_qs(field_data)
-      key, value = fields.get('key')[0], fields.get('value', [None])[0]
+      key, value, requestid = fields.get('key')[0], fields.get('value', [None])[0], fields.get('requestid')[0]
       if INSERT_PATH in self.path and value is not None:
-        op = Operation('INSERT', key, value)
+        op = Operation(requestid, 'INSERT', key, value)
       elif UPDATE_PATH in self.path and value is not None:
-        op = Operation('UPDATE', key, value)
+        op = Operation(requestid, 'UPDATE', key, value)
       elif DELETE_PATH in self.path:
-        op = Operation('DELETE', key)
+        op = Operation(requestid, 'DELETE', key)
       else:
         assert False
       print 'aaa'
@@ -163,6 +175,8 @@ class KvPaxosServer:
     except KeyboardInterrupt:
       print 'interrupted'
       sys.exit(0)
+    print 'exits'
+    self.http_server.server_close()
     sys.exit(0)
   
   ''' this function is only called by the handler class'''
@@ -216,7 +230,7 @@ class KvPaxosServer:
 
   def handle_shutdown(self):
     self.keep_running = False
-    self.http_server.server_close()
+    
 
   
 kv_paxos_server = KvPaxosServer()

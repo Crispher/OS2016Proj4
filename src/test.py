@@ -4,38 +4,38 @@ from util import *
 
 MAX_RESPONSE_LENGTH = 200
 
-def qstr(key, value=None):
+def qstr(requestid, key, value=None):
     #t = time.time()
     if value is None:
-        return '?key=' + quote(key) 
+        return '?key=' + quote(key) + '&requestid=' + quote(str(requestid))
     #elapsed = time.time()-t
-    return '?key=' + quote(key) + '&value=' + quote(value)
+    return '?key=' + quote(key) + '&value=' + quote(value) + '&requestid=' + quote(str(requestid))
 
-def bstr(key, value=None):
+def bstr(requestid, key, value=None):
     if value is not None:
-        return 'key=' + quote(key) + '&value=' + quote(value)
-    return 'key=' + quote(key)
+        return 'key=' + quote(key) + '&value=' + quote(value) + '&requestid=' + quote(str(requestid))
+    return 'key=' + quote(key) + '&requestid=' + quote(str(requestid))
 
-def insert(http_conn, key, value):
-    http_conn.request('POST', INSERT_PATH, bstr(key, value))
+def insert(http_conn, requestid, key, value):
+    http_conn.request('POST', INSERT_PATH, bstr(requestid, key, value))
     r = http_conn.getresponse()
     rstr = r.read(MAX_RESPONSE_LENGTH)
     return json.loads(rstr.decode('utf-8'))
 
-def get(http_conn, key):
-    http_conn.request('GET', GET_PATH + qstr(key))
+def get(http_conn, requestid, key):
+    http_conn.request('GET', GET_PATH + qstr(requestid, key))
     r = http_conn.getresponse()
     rstr = r.read(MAX_RESPONSE_LENGTH)
     return json.loads(rstr.decode('utf-8'))
     
 def update(http_conn, key, value):
-    http_conn.request('POST', UPDATE_PATH, bstr(key, value))
+    http_conn.request('POST', UPDATE_PATH, bstr(requestid, key, value))
     r = http_conn.getresponse()
     rstr = r.read(MAX_RESPONSE_LENGTH)
     return json.loads(rstr.decode('utf-8'))
     
 def delete(http_conn, key):
-    http_conn.request('POST', DELETE_PATH, bstr(key))
+    http_conn.request('POST', DELETE_PATH, bstr(requestid, key))
     r = http_conn.getresponse()
     rstr = r.read(MAX_RESPONSE_LENGTH)
     return json.loads(rstr.decode('utf-8'))
@@ -64,7 +64,11 @@ http_conn = HTTPConnection(HOST, PORT)
 # print countkey(http_conn)['result']
 # print shutdown(http_conn)
 
-print insert(http_conn, 'a', '1')
-print get(http_conn, 'a')
+print insert(http_conn, 123, 'a', '1')
+print get(http_conn, 456, 'a')
 
 http_conn.close()
+
+for host in HOSTS_LIST:
+  http_conn = HTTPConnection(host, PORT)
+  shutdown(http_conn)

@@ -84,7 +84,7 @@ def threadedDone(server):
 def threadedMaintainence(server):
   while (True):
     time.sleep(5)  # number of seconds slept over next check, I randomly picked "2" without further examination. In reality, this number should depend on the number of servers as well as network condition
-    if self.alive is False:
+    if server.alive is False:
       continue
     with server.seqLock:
       for i in range(len(server.listValue)):  # suppose this is executed for len(server.listValue) times

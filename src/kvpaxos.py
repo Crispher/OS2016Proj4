@@ -198,7 +198,7 @@ class Paxos:
     #print len(self.listServer)
     if self.listServer[num] is None:
       try:
-        self.listServer[num] = xmlrpclib.ServerProxy('http://' + self.listServerAddress[num] + ':' + RPC_PORT)
+        self.listServer[num] = xmlrpclib.ServerProxy('http://' + self.listServerAddress[num] + ':' + str(RPC_PORT))
         #log('[INFO] connect to RPC server')
         print 'server numbered ' + str(self.number) + ' successfully connected to server numbered ' + str(num)
         return True

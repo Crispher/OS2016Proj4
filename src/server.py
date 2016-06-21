@@ -74,7 +74,7 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         assert (GET_PATH in self.path)
         # wrap an operation and call paxos 
         seq = self.paxos_consensus(op)
-        success, value = self.server.execute(seq, op)
+        success, value = self.kv_server.execute(seq, op)
         self.wfile.write(generate_response(success, value))
         return
     except Exception, e:
@@ -99,7 +99,7 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
       else:
         assert False
       seq = self.paxos_consensus(op)
-      success, value = self.server.execute(seq, op)
+      success, value = self.kv_server.execute(seq, op)
       self.wfile.write(generate_response(success, value))
       
     except IOError, e:

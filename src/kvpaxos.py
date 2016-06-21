@@ -32,7 +32,7 @@ class _RPCFuncs:  # Reused LPH's structure
         return False, self.server.listValue[seq-self.server.minNum], -1, self.server.listKnownMin[self.server.number]
       returnRoundNum = self.server.listRoundNum[seq-self.server.minNum]
       self.server.listRoundNum[seq-self.server.minNum] = roundNum
-      return True, self.server.listPendingValue, returnRoundNum, self.server.listKnownMin[self.server.number]
+      return True, self.server.listPendingValue[seq-self.server.minNum], returnRoundNum, self.server.listKnownMin[self.server.number]
   def response_to_proposed_value(self, seq, roundNum, proposedVal): # Stage 2b in the slides
     if (roundNum < self.server.listRoundNum[seq-self.server.minNum]):
     # the round number is old

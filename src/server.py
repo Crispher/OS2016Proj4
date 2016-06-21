@@ -125,7 +125,7 @@ class KvPaxosServer:
     
     # do not modify these 2 vars outside the execute() function
     # lock required to access these values. # maybe unnecessary 
-    self.executed_paxos_no = -1
+    self.executed_paxos_no = 0
     # contains all executed operations and their return values
     self.operation_log = []
     
@@ -170,7 +170,7 @@ class KvPaxosServer:
       self.executed_paxos_no += 1
       self.px.done(seq)
       op.done((success, value))
-      self.operation_log += [Operation(op)]
+      self.operation_log += [op]
       return success, value
       
 

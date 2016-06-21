@@ -110,15 +110,15 @@ def threadedStart(server, seq):
         individualMin = returnVal[3]
         """
         result, prePropose, returnRoundNum, individualMin = server.listServer[i].response_to_proposed_lead(seq, roundNum)
-      #except Exception, e:
-       # print "Exception returned from server " + str(i)
-        #continue  # in case remote server is unreachable, continue
-      except xmlrpclib.ProtocolError as err:
-        print "A protocol error occurred"
-        print "URL: %s" % err.url
-        print "HTTP/HTTPS headers: %s" % err.headers
-        print "Error code: %d" % err.errcode
-        print "Error message: %s" % err.errmsg
+      except Exception, e:
+        print "Exception returned from server " + str(i)
+        continue  # in case remote server is unreachable, continue
+      # except xmlrpclib.ProtocolError as err:
+      #   print "A protocol error occurred"
+      #   print "URL: %s" % err.url
+      #   print "HTTP/HTTPS headers: %s" % err.headers
+      #   print "Error code: %d" % err.errcode
+      #   print "Error message: %s" % err.errmsg
       print "Successfully got reply from server " + str(i)
       if (individualMin > server.listKnownMin[i]):  # some remote server sends his Done message
         if server.listKnownMin[i] is server.minNum:

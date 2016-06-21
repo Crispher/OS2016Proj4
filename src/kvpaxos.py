@@ -50,16 +50,16 @@ def threadedDone(server):
       raise Exception("Shouldn't reached here")
     elif (dif > 0):
       server.minNum = newMinNum
-      for i in [1, dif]:  # Suppose this is executed for dif times
+      for i in range(dif):  # Suppose this is executed for dif times
         del server.listValue[0]
         del server.listRoundNum[0]
         del server.listPendingValue[0]
         del server.listPendingToLead[0]
 def threadedMaintainence(server):
   while (True):
-    sleep(2)  # number of seconds slept over next check, I randomly picked "2" without further examination. In reality, this number should depend on the number of servers as well as network condition
+    time.sleep(2)  # number of seconds slept over next check, I randomly picked "2" without further examination. In reality, this number should depend on the number of servers as well as network condition
     with server.seqLock:
-      for i in [0, len(server.listValue) - 1]:  # suppose this is executed for len(server.listValue) times
+      for i in range(len(server.listValue)):  # suppose this is executed for len(server.listValue) times
         if (server.listValue[i] == "" and server.listPendingValue != ""):
           """tStart = """
           client_thread('tStart' + str(server.number) + ' ' 
@@ -79,7 +79,7 @@ def threadedStart(server, seq):
     trueReply = 0
     highestPrevRound = -1
     prevRoundReply = ""
-    for i in [0, server.amount - 1]:
+    for i in range(0, server.amount):
       """
       if (i == server.number):
         continue
@@ -136,7 +136,7 @@ def threadedStart(server, seq):
       proposedVal = server.listPendingValue[seq - server.minNum]
     server.listRoundNum[seq - server.minNum] = roundNum
     trueReply = 0
-  for i in [0, server.amount - 1]:
+  for i in range(0, server.amount):
     """
     if (i == server.number):
       continue
@@ -163,7 +163,7 @@ def threadedStart(server, seq):
   # It has been decided
   with server.seqLock:
     server.listValue[seq - server.minNum] = proposedVal
-  for i in [0, server.amount - 1]:
+  for i in range(server.amount):
     """
     if (i == server.number):
       continue
@@ -194,6 +194,8 @@ class Paxos:
   def checkListServer(self, num):
     if num is self.number:
       return False
+    print num
+    print len(self.listServer)
     if self.listServer[num] is None:
       try:
         self.listServer[num] = xmlrpclib.ServerProxy(self.listServerAddress[num])
@@ -212,14 +214,17 @@ class Paxos:
     return p
   
   def _make1(self, peers, me):
+    print 'ab'
     if (self.number != -1):
       return False
+    print 'ac', me, len(peers)
     self.number = me
     self.listServerAddress = peers
     self.amount = len(peers)
     if (me < 0 or me >= self.amount):
       return False
-    for i in [0, self.amount - 1]:  # Suppose this is executed for (len(peers)) times
+    print 'aa', self.amount
+    for i in range(0, self.amount):  # Suppose this is executed for (len(peers)) times
       self.listKnownMin.append(0)
       self.listServer.append(None)
       #self.CheckListServer(i)  # not necessary
@@ -240,7 +245,7 @@ class Paxos:
       """
     # Reused code from LHP
     self.server = SimpleXMLRPCServer(
-      (self.listServerAddress[me],  PORT),
+      (self.listServerAddress[me],  RPC_PORT),
       requestHandler=Paxos.RequestHandler
     )
     self.server.register_introspection_functions()

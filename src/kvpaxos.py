@@ -67,6 +67,8 @@ def threadedMaintainence(server):
           client_thread('tStart' + str(server.number) + ' ' 
               + str(i + server.minNum) + ' by maintainence', threadedStart, server, i + server.minNum).start()
           #tStart.start()
+def threadedServerForever(server):
+  server.serve_forever()
 def threadedStart(server, seq):
   """print server.number"""
   #server.listRoundNum[seq - server.minNum] += 1
@@ -258,6 +260,8 @@ class Paxos:
     )
     self.server.register_introspection_functions()
     self.server.register_instance(_RPCFuncs(self))
+    tServerForever = client_thread('tServerForever' + str(self.number), threadedServerForever, self.server)
+    tServerForever.start()
     return True
   def start(self, seq, value):
     with self.seqLock:

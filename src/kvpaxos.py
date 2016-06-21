@@ -19,10 +19,10 @@ class _RPCFuncs:  # Reused LPH's structure
     return True
   def response_to_proposed_lead(self, seq, roundNum):  # Stage 1b in the slides
     print 'server numbered ' + str(self.server.number) + ' responding to proposed lead'
+    if self.server.alive is False:
+      return False, "", -3, -1
     with self.server.seqLock:
-      #print 'server numbered ' + str(self.server.number) + ' responding to proposed lead, lock acquired'
       while (self.server.minNum + len(self.server.listValue) <= seq):
-        #print "Appending!!!~~~"
         self.server.listValue.append("")
         self.server.listRoundNum.append(-1)
         self.server.listPendingValue.append("")
@@ -49,23 +49,26 @@ class _RPCFuncs:  # Reused LPH's structure
       #print "exit position 4"
       return True, self.server.listPendingValue[seq-self.server.minNum], returnRoundNum, self.server.listKnownMin[self.server.number]
   def response_to_proposed_value(self, seq, roundNum, proposedVal): # Stage 2b in the slides
-    print "stage 2"
-    print 'Stage 2: Actual length is ' + str(len(self.server.listValue))+ str(len(self.server.listRoundNum))+ str(len(self.server.listPendingValue))+ str(len(self.server.listPendingToLead))
-    print str(seq-self.server.minNum)
-    if (roundNum < self.server.listRoundNum[seq-self.server.minNum]):
-    # the round number is old
-      print 'aaaaa'
-      return False, self.server.listKnownMin[self.server.number]
-    print 'bbbbb'
-    self.server.listPendingValue[seq-self.server.minNum] = proposedVal
-    print 'ccccc'
-    self.server.listRoundNum[seq-self.server.minNum] = roundNum
-    return True, self.server.listKnownMin[self.server.number]
+    if self.server.alive is False:
+      return False, -1
+    with self.server.seqLock:    # A lock here is necessary
+      if (roundNum < self.server.listRoundNum[seq-self.server.minNum]):
+      # the round number is old
+        return False, self.server.listKnownMin[self.server.number]
+      self.server.listPendingValue[seq-self.server.minNum] = proposedVal
+      self.server.listRoundNum[seq-self.server.minNum] = roundNum
+      return True, self.server.listKnownMin[self.server.number]
   def response_to_decision(self, seq, decidedVal):  # Stage 3 in the slides
     # Maybe adding some assertations?
-    self.server.listValue[seq-self.server.minNum] = decidedVal
-    return True
+    if self.server.alive is True:
+      with self.server.seqLock:
+        self.server.listValue[seq-self.server.minNum] = decidedVal
+      return True
+    else :
+      return False
 def threadedDone(server):
+  if server.alive is False:
+    return
   with server.seqLock:  # the whole session should be wrapped in locks
     newMinNum = min(server.listKnownMin)
     dif = newMinNum - server.minNum
@@ -81,20 +84,18 @@ def threadedDone(server):
 def threadedMaintainence(server):
   while (True):
     time.sleep(5)  # number of seconds slept over next check, I randomly picked "2" without further examination. In reality, this number should depend on the number of servers as well as network condition
+    if self.alive is False:
+      continue
     with server.seqLock:
       for i in range(len(server.listValue)):  # suppose this is executed for len(server.listValue) times
         if (server.listValue[i] == "" and server.listPendingValue[i] != ""):
-          """tStart = """
           client_thread('tStart' + str(server.number) + ' ' 
               + str(i + server.minNum) + ' by maintainence', threadedStart, server, i + server.minNum).start()
-          #tStart.start()
 def threadedServerForever(server):
   server.serve_forever()
 def threadedStart(server, seq):
-  """print server.number"""
-  #server.listRoundNum[seq - server.minNum] += 1
   with server.seqLock:
-    if (server.listPendingToLead[seq - server.minNum] > 0): 
+    if (server.listPendingToLead[seq - server.minNum] > 0 or server.alive == False): 
       return  # full fix
     server.listPendingToLead[seq - server.minNum] = 2
     roundNum = server.listRoundNum[seq - server.minNum] + 1
@@ -156,7 +157,9 @@ def threadedStart(server, seq):
             server.listPendingToLead[seq - server.minNum] = 0
           return
         else:
-          if returnRoundNum is -2:  # Somebody else is trying to lead
+          if returnRoundNum is -3:    # distant server currently dead
+            continue
+          elif returnRoundNum is -2:  # Somebody else is trying to lead
             """server.listPendingToLead[seq - server.minNum] = False
             return"""
             break  # I think this is a better solution
@@ -165,16 +168,19 @@ def threadedStart(server, seq):
             #server.listRoundNum[seq - server.minNum] = roundNum  # This shouldn't be here
             flag = True
             break
+    if server.alive is False:
+      with server.seqLock:
+        server.listPendingToLead[seq - server.minNum] = 0
+        return
   with server.seqLock:
     if ((trueReply + 1) * 2 <= server.amount):  
       server.listPendingToLead[seq - server.minNum] = 0
       return 
     else:
       server.listPendingToLead[seq - server.minNum] = 1
-  # I'm OK to lead
-  print "I'm leading"
-  #proposedVal = ""
-  with server.seqLock:
+    # I'm OK to lead
+    #print "I'm leading"
+    #with server.seqLock:
     if (highestPrevRound > server.listRoundNum[seq - server.minNum]):
       proposedVal = prevRoundReply
       server.listPendingValue[seq - server.minNum] = proposedVal
@@ -196,24 +202,23 @@ def threadedStart(server, seq):
       result, individualMin = server.listServer[i].response_to_proposed_value(seq, roundNum, proposedVal)
     except Exception, e:
       print "Exception in the second stage"
-      print e
+      #print e
       continue  # in case remote server is unreachable, continue
     if result is True:
       trueReply += 1
     if (individualMin > server.listKnownMin[i]):  # some remote server sends his Done message
+      # On a second thought I think no lock is fine here
       if server.listKnownMin[i] is server.minNum:
         server.listKnownMin[i] = individualMin
         tDone = client_thread('tDone' + str(server.number) + ' ' + str(individualMin), threadedDone, serverd)
         tDone.start()
       else:
         server.listKnownMin[i] = individualMin
-  if ((trueReply + 1) * 2 <= server.amount):  
+  if ((trueReply + 1) * 2 <= server.amount or server.alive == False):  
     with server.seqLock:
       server.listPendingToLead[seq - server.minNum] = 0
       return 
   # It has been decided
-  print "It's decided"
-  print proposedVal
   with server.seqLock:
     server.listValue[seq - server.minNum] = proposedVal
   for i in range(server.amount):
@@ -232,6 +237,7 @@ def threadedStart(server, seq):
   return 
 class Paxos:
   def __init__ (self):
+    self.alive = True
     self.number = -1
     self.amount = -1  # Total amount of peers, so that no length(..) is needed
     self.listValue = []  # decided values
@@ -267,9 +273,8 @@ class Paxos:
     p = Paxos()
     p._make1(peers, me)
     return p
-  
   def _make1(self, peers, me):
-    print 'ab'
+    #print 'ab'
     if (self.number != -1):
       return False
     print 'ac', me, len(peers)
@@ -309,9 +314,8 @@ class Paxos:
     tServerForever.start()
     return True
   def start(self, seq, value):
-    #print "starting: "
-    #print str(seq)
-    #print value
+    if self.alive is False:
+      return False
     with self.seqLock:
       while (self.minNum + len(self.listValue) <= seq):
         self.listValue.append("")
@@ -332,7 +336,15 @@ class Paxos:
   def max(self):
     with self.seqLock:
       return self.minNum + len(self.listValue) - 1
+  def kill(self):
+    self.alive = False
+  def resurrect(self):
+    self.alive = True
   def done(self, seq):
+    """
+    if self.alive is False:
+      return False
+    """
     if (self.number == -1):
       return False
     if (seq > self.listKnownMin[self.number]):

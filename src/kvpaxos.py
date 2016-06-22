@@ -66,9 +66,9 @@ class _RPCFuncs:  # Reused LPH's structure
       return True
     else :
       return False
-  def response_to_resurrection_query(self)
+  def response_to_resurrection_query(self):
     return self.server.minNum, self.server.minNum + len(self.server.listValue) - 1
-  def response_to_resurrection_result_query(self, num)
+  def response_to_resurrection_result_query(self, num):
     if (num - self.server.minNum >= len(self.server.listValue) or num < self.server.minNum):
       return ""
     else:
@@ -109,12 +109,12 @@ def threadedResurrect(server):
     server.listKnownMin[i] = remoteMin
     with server.seqLock:
       while (server.minNum + len(server.listValue) - 1 < remoteMax):
-        self.listValue.append("")
-        self.listRoundNum.append(-1)
-        self.listPendingValue.append("")
-        self.listPendingToLead.append(0)
+        server.listValue.append("")
+        server.listRoundNum.append(-1)
+        server.listPendingValue.append("")
+        server.listPendingToLead.append(0)
       for j in range(remoteMin, remoteMax + 1):
-        if server.listValue[j - server.minNum] is ""
+        if server.listValue[j - server.minNum] is "":
           remoteAnswer = server.listServer[i].response_to_resurrection_result_query(j)
           if (remoteAnswer != ""):
             server.listValue[j - server.minNum] = remoteAnswer

@@ -6,6 +6,7 @@ from util import *
 from store import Store
 from kvpaxos import *
 import sys
+import os
 import time
 
 
@@ -23,7 +24,10 @@ class Operation:
     self.executed = True
     
   def __eq__(self, other):
-    return self.requestid == other.requestid and  self.op_type == other.op_type and self.key == other.key and self.value == other.value
+    if self.requestid == other.requestid:
+       assert self.op_type == other.op_type and self.key == other.key and self.value == other.value, "client request not unique!"
+       return True
+    return False
   
   def encode(self):
     try:
@@ -35,7 +39,6 @@ class Operation:
             'executed':self.executed,
             'return_value':self.return_value
           }
-      print json.dumps(s)
       return json.dumps(s)
     except Exception, e:
       print 'encode error', e
@@ -89,7 +92,6 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
   def do_GET(self):
     self.do_HEAD()
     try:
-      print self.path
       if self.path[:4] == '/kvm':
         if self.path == COUNT_PATH:
           cnt = self.kv_server.kvstore.countkey()
@@ -99,10 +101,12 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
           pairs = self.kv_server.kvstore.dump()
           self.wfile.write(pairs)
         elif self.path == SHUTDOWN_PATH:
-          self.wfile.write('preparing to shutdown')
+          print 'preparing'
+          self.wfile.write('{"result":"preparing to shutdown""')
+          self.finish()
           self.kv_server.handle_shutdown()
         else:
-          pass
+          assert False
         log('a')
         return
       else:
@@ -137,7 +141,6 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         assert False
       seq = self.paxos_consensus(op)
       success, value = self.kv_server.execute(seq, requestid)
-      print success, value
       self.wfile.write(generate_response(success, value))
       
     except IOError, e:
@@ -169,24 +172,26 @@ class KvPaxosServer:
     maintainance_thread.start()
     try:
       while self.keep_running:
+      # self.http_server.serve_forever()
         self.http_server.handle_request()
     except KeyboardInterrupt:
-      print 'interrupted'
       sys.exit(0)
+
+    maintainance_thread.join()
     print 'exits'
-    self.http_server.server_close()
-    self.http_server.shutdown()
+    os._exit(0)
     sys.exit(0)
   
   def maintainance(self):
     while self.keep_running:
-      while self.px.max() < self.executed_paxos_no:
+      while self.px.max() < self.executed_paxos_no and self.keep_running:
         time.sleep(1)
-      self.execute(self.executed_paxos_no, None)
-        
+      if self.keep_running:
+        self.execute(self.executed_paxos_no, None)
+    print 'maintainance exits'    
       
   
-  ''' this function is only called by the handler class'''
+  ''' this function is only called by the handler class, & the maintainance thread'''
   def execute(self, seq, requestid):
       
     # catch up. this ensures that operations are executed in ascending order
@@ -203,7 +208,10 @@ class KvPaxosServer:
         print 'a', self.processed_requestid[requestid], self.executed_paxos_no
         assert self.processed_requestid[requestid] < self.executed_paxos_no
         return self.operation_log[self.processed_requestid[requestid]].return_value
+      
+      # this request has not been executed yet, or is being executed by maintainance thread.
       while True:
+        # since not executed, it cannot be forgotten
         decided, op_jstr = self.px.status(seq)
         print seq, decided
         if decided:
@@ -230,7 +238,11 @@ class KvPaxosServer:
       print 'lock released ============================================================'
       print self.processed_requestid
       return success, value
-      
+  
+  def handle_shutdown(self):
+    self.keep_running = False
+    # self.http_server.server_close()
+    # self.http_server.shutdown()
   
 kv_paxos_server = KvPaxosServer()
 kv_paxos_server.start()

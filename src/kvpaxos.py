@@ -277,13 +277,11 @@ class Paxos:
     #print 'ab'
     if (self.number != -1):
       return False
-    print 'ac', me, len(peers)
     self.number = me
     self.listServerAddress = peers
     self.amount = len(peers)
     if (me < 0 or me >= self.amount):
       return False
-    print 'aa', self.amount
     for i in range(0, self.amount):  # Suppose this is executed for (len(peers)) times
       self.listKnownMin.append(0)
       self.listServer.append(None)

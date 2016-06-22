@@ -66,6 +66,13 @@ class _RPCFuncs:  # Reused LPH's structure
       return True
     else :
       return False
+  def response_to_resurrection_query(self)
+    return self.server.minNum, self.server.minNum + len(self.server.listValue) - 1
+  def response_to_resurrection_result_query(self, num)
+    if (num - self.server.minNum >= len(self.server.listValue) or num < self.server.minNum):
+      return ""
+    else:
+      return self.server.listValue[num - self.server.minNum]
 def threadedDone(server):
   if server.alive is False:
     return
@@ -91,6 +98,28 @@ def threadedMaintainence(server):
         if (server.listValue[i] == "" and server.listPendingValue[i] != ""):
           client_thread('tStart' + str(server.number) + ' ' 
               + str(i + server.minNum) + ' by maintainence', threadedStart, server, i + server.minNum).start()
+def threadedResurrect(server):
+  for i in range(0, server.amount):
+    if server.checkListServer(i) is False:
+      continue
+    try:
+      remoteMin, remoteMax = server.listServer[i].response_to_resurrection_query()
+    except Exception, e:
+      continue
+    server.listKnownMin[i] = remoteMin
+    with server.seqLock:
+      while (server.minNum + len(server.listValue) - 1 < remoteMax):
+        self.listValue.append("")
+        self.listRoundNum.append(-1)
+        self.listPendingValue.append("")
+        self.listPendingToLead.append(0)
+      for j in range(remoteMin, remoteMax + 1):
+        if server.listValue[j - server.minNum] is ""
+          remoteAnswer = server.listServer[i].response_to_resurrection_result_query(j)
+          if (remoteAnswer != ""):
+            server.listValue[j - server.minNum] = remoteAnswer
+  tDone = client_thread('tDone' + str(server.number), threadedDone, server)
+  tDone.start()
 def threadedServerForever(server):
   server.serve_forever()
 def threadedStart(server, seq):
@@ -336,8 +365,12 @@ class Paxos:
       return self.minNum + len(self.listValue) - 1
   def kill(self):
     self.alive = False
-  def resurrect(self):
+  def resurrect(self, wait_bool = False):
     self.alive = True
+    tResurrect = client_thread('tResurrect' + str(self.number), threadedResurrect, self)
+    tResurrect.start()
+    if wait_bool is True:
+      tResurrect.join()
   def done(self, seq):
     """
     if self.alive is False:
@@ -356,7 +389,7 @@ class Paxos:
   def status(self, seq):
     with self.seqLock:
       if (seq < self.minNum) :
-        # return False, ""	# Modified at GY's request
+        # return False, ""    # Modified at GY's request
         return True, None
       if (seq - self.minNum >= len(self.listValue)) :
         return False, None

@@ -118,7 +118,7 @@ def threadedResurrect(server):
         if server.listValue[j - server.minNum] is "":
           remoteResult, remotePending, remoteNumber = server.listServer[i].response_to_resurrection_result_query(j)
           if (remoteResult != ""):
-            server.listValue[j - server.minNum] = remoteAnswer
+            server.listValue[j - server.minNum] = remoteResult
           elif (remoteNumber > server.listRoundNum[j - server.minNum]):
             server.listRoundNum[j - server.minNum] = remoteNumber
             server.listPendingValue[j - server.minNum] = remotePending
@@ -396,9 +396,11 @@ class Paxos:
         # return False, ""    # Modified at GY's request
         return True, None
       if (seq - self.minNum >= len(self.listValue)) :
-        return False, None
+        return False, '1'
+        #return False, None
       if (self.listValue[seq - self.minNum] == "") :
-        return False, None
+        return False, '2'
+        #return False, None
       else:
         return True, self.listValue[seq - self.minNum]
   class RequestHandler(SimpleXMLRPCRequestHandler):

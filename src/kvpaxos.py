@@ -186,7 +186,7 @@ def threadedStart(server, seq):
             # print str(returnRoundNum) + str(highestPrevRound)
             raise Exception("Shouldn't reached here")
           else:
-            preRoundReply = prePropose
+            prevRoundReply = prePropose
             highestPrevRound = returnRoundNum
       else:
         if (prePropose != ""):

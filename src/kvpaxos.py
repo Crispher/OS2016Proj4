@@ -350,6 +350,8 @@ class Paxos:
     self.server.register_instance(_RPCFuncs(self))
     tServerForever = client_thread('tServerForever' + str(self.number), threadedServerForever, self.server)
     tServerForever.start()
+    tMaintainence = client_thread('tMaintainence' + str(self.number), threadedMaintainence, self)
+    tMaintainence.start()
     return True
   def start(self, seq, value):
     while self.alive is False:
@@ -365,8 +367,6 @@ class Paxos:
         self.listPendingValue[seq - self.minNum] = value
         tStart = client_thread('tStart' + str(self.number) + ' ' + str(seq), threadedStart, self, seq)
         tStart.start()
-        tMaintainence = client_thread('tMaintainence' + str(self.number), threadedMaintainence, self)
-        tMaintainence.start()
         return True
       return False
   def min(self):

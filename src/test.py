@@ -79,7 +79,7 @@ def multiput(func, *args):
 import random
 class _R():
   def __init__(self):
-    self._ID = 0
+    self._ID = -1
   def get_id(self):
     self._ID += 1
     return self._ID
@@ -88,7 +88,7 @@ class _R():
 R = _R()
 
 print multiput(insert, R.get_id(), 'a', '1')
-# print get(R.get_random_host(), R.get_id(), 'a')
+print get(R.get_random_host(), R.get_id(), 'a')
 print multiput(delete, R.get_id(), 'a')
 
 

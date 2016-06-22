@@ -72,7 +72,7 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
       decided, op_value = self.kv_server.px.status(seq)
       while not decided:
         time.sleep(sleep_time)
-        sleep_time = max(sleep_time*2, 1)
+        sleep_time = max(sleep_time*2, MAX_SLEEP_TIME)
         decided, op_value = self.kv_server.px.status(seq)
       if op_value is not None:
         if Operation.decode(op_value) == op:
@@ -97,11 +97,9 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
           cnt = self.kv_server.kvstore.countkey()
           self.wfile.write('{"result":"%d"}' % cnt)
         elif self.path == DUMP_PATH:
-          log('dump')
           pairs = self.kv_server.kvstore.dump()
           self.wfile.write(pairs)
         elif self.path == SHUTDOWN_PATH:
-          print 'preparing'
           self.wfile.write('{"result":"preparing to shutdown""')
           self.finish()
           self.kv_server.handle_shutdown()
@@ -178,17 +176,14 @@ class KvPaxosServer:
       sys.exit(0)
 
     maintainance_thread.join()
-    print 'exits'
     os._exit(0)
-    sys.exit(0)
   
   def maintainance(self):
     while self.keep_running:
       while self.px.max() < self.executed_paxos_no and self.keep_running:
-        time.sleep(1)
+        time.sleep(MAX_SLEEP_TIME)
       if self.keep_running:
-        self.execute(self.executed_paxos_no, None)
-    print 'maintainance exits'    
+        self.execute(self.executed_paxos_no, None)    
       
   
   ''' this function is only called by the handler class, & the maintainance thread'''
@@ -196,16 +191,14 @@ class KvPaxosServer:
       
     # catch up. this ensures that operations are executed in ascending order
     while self.executed_paxos_no < seq:
-      time.sleep(1)
+      time.sleep(MAX_SLEEP_TIME)
     
     with self.lock:
-      print 'lock acquired ============================================================'
-      print self.processed_requestid, seq, requestid
+      # print 'lock acquired ============================================================'
       # if seq < self.executed_paxos_no:
       #   # the operations is done by other threads already, check the log directly
       #   return operation_log[seq].return_value
       if self.processed_requestid.has_key(requestid):
-        print 'a', self.processed_requestid[requestid], self.executed_paxos_no
         assert self.processed_requestid[requestid] < self.executed_paxos_no
         return self.operation_log[self.processed_requestid[requestid]].return_value
       
@@ -213,11 +206,10 @@ class KvPaxosServer:
       while True:
         # since not executed, it cannot be forgotten
         decided, op_jstr = self.px.status(seq)
-        print seq, decided
         if decided:
           break 
         else:
-          time.sleep(1)
+          time.sleep(MAX_SLEEP_TIME)
       op = Operation.decode(op_jstr)
       assert decided
       if self.processed_requestid.has_key(op.requestid):
@@ -235,12 +227,13 @@ class KvPaxosServer:
       self.px.done(seq)
       op.done((success, value))
       self.operation_log += [op]
-      print self.processed_requestid, seq, op.requestid
+      # print self.processed_requestid, seq, op.requestid
       assert (not self.processed_requestid.has_key(op.requestid)) or requestid is None
       if not self.processed_requestid.has_key(op.requestid):
         self.processed_requestid[op.requestid] = seq
-      print 'lock released ============================================================'
-      print self.processed_requestid
+      # print 'lock released ============================================================'
+      # print self.processed_requestid
+      print op
       # print [op.encode() for op in self.operation_log]
       return success, value
   

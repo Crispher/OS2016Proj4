@@ -113,7 +113,7 @@ def threadedStart(server, seq):
       print "Trying to connect to server " + str(i)
       if server.checkListServer(i) is False:
         continue
-      print "Decided to connect to server " + str(i)
+      # print "Decided to connect to server " + str(i)
       try:
         """
         returnVal = server.listServer[i].response_to_proposed_lead(seq, roundNum)
@@ -124,7 +124,7 @@ def threadedStart(server, seq):
         """
         result, prePropose, returnRoundNum, individualMin = server.listServer[i].response_to_proposed_lead(seq, roundNum)
       except Exception, e:
-        print "Exception returned from server " + str(i)
+        # print "Exception returned from server " + str(i)
         continue  # in case remote server is unreachable, continue
       # except xmlrpclib.ProtocolError as err:
       #   print "A protocol error occurred"
@@ -132,9 +132,9 @@ def threadedStart(server, seq):
       #   print "HTTP/HTTPS headers: %s" % err.headers
       #   print "Error code: %d" % err.errcode
       #   print "Error message: %s" % err.errmsg
-      print "Successfully got reply from server " + str(i)
+      # print "Successfully got reply from server " + str(i)
       if (individualMin > server.listKnownMin[i]):  # some remote server sends his Done message
-        print "Updating local min list"
+        # print "Updating local min list"
         if server.listKnownMin[i] is server.minNum:
           server.listKnownMin[i] = individualMin
           tDone = client_thread('tDone' + str(server.number) + ' ' + str(individualMin), threadedDone, server)
@@ -145,7 +145,7 @@ def threadedStart(server, seq):
         trueReply += 1
         if (returnRoundNum > highestPrevRound):
           if (prePropose == ""):
-            print str(returnRoundNum) + str(highestPrevRound)
+            # print str(returnRoundNum) + str(highestPrevRound)
             raise Exception("Shouldn't reached here")
           else:
             preRoundReply = prePropose
@@ -196,12 +196,12 @@ def threadedStart(server, seq):
     if server.checkListServer(i) is False:
       continue
     try:
-      print seq
-      print roundNum
-      print proposedVal
+      # print seq
+      # print roundNum
+      # print proposedVal
       result, individualMin = server.listServer[i].response_to_proposed_value(seq, roundNum, proposedVal)
     except Exception, e:
-      print "Exception in the second stage"
+      # print "Exception in the second stage"
       #print e
       continue  # in case remote server is unreachable, continue
     if result is True:

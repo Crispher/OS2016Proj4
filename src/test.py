@@ -201,8 +201,8 @@ def test():
         list1[i - 1].join()
         count_1 = count_1 + list1[i-1].result
     r = delete(R.get_random_host(), R.get_id(), str(test_num))
-    
-    t2 = client_thread('test2', test2, 0, 70)
+    test_amount = 75
+    t2 = client_thread('test2', test2, 0, test_amount)
     t2.start()
     t2.join()
     # print 'hhh'
@@ -212,7 +212,7 @@ def test():
         print("Result:success")
     else:
         print("Result:fail")
-    print("Insertion: " + str(iss) + " / 1000")
+    print("Insertion: " + str(iss) + " / " + str(test_amount))
     print("Average latency (ms): " + str(ia) + " / " + str(ga))
     print("Percentile latency:" + str(i2) + " / " + str(g2) + ", " + str(i5) + " / " + str(g5) + ", " + str(i7) + " / " + str(g7) + ", " + str(i9) + " / " + str(g9))
 

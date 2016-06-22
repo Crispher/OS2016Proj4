@@ -63,6 +63,16 @@ def shutdown(http_conn):
     http_conn.getresponse()
     return
 
+def paxos_kill(http_conn):
+    http_conn.request('GET', PAXOS_KILL_PATH)
+    http_conn.getresponse()
+    return
+
+def paxos_resurrect(http_conn):
+    http_conn.request('GET', PAXOS_RESURRECT_PATH)
+    http_conn.getresponse()
+    return
+
 http_conn = HTTPConnection(HOST, PORT)
 # print dump(http_conn)
 # print countkey(http_conn)['result']
@@ -88,7 +98,11 @@ class _R():
 R = _R()
 
 print multiput(insert, R.get_id(), 'a', '1')
-print get(R.get_random_host(), R.get_id(), 'a')
+paxos_kill(conn_list[2])
+# print get(R.get_random_host(), R.get_id(), 'a')
+print get(conn_list[1], R.get_id(), 'a')
+paxos_resurrect(conn_list[2])
+# print delete(conn_list[1], R.get_id(), 'a')
 print multiput(delete, R.get_id(), 'a')
 
 

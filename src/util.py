@@ -14,7 +14,7 @@ if len(sys.argv) > 1:
 n_hosts = len(data)
 HOSTS_LIST = [str(data['n' + ('%02i'%i)]) for i in range(1, n_hosts+1)]
 
-MAX_SLEEP_TIME = 0.05
+MAX_SLEEP_TIME = 1
 
 DEBUG = True
 
@@ -27,6 +27,8 @@ COUNT_PATH = '/kvman/countkey'
 DUMP_PATH = '/kvman/dump'
 SHUTDOWN_PATH = '/kvman/shutdown'
 
+PAXOS_KILL_PATH = '/kvman/paxos_kill'
+PAXOS_RESURRECT_PATH = '/kvman/paxos_resurrect'
 
 def generate_response(success, value=None):
   return '{"success" : "%s"' % str(success).lower() + \

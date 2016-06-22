@@ -130,10 +130,8 @@ def threadedResurrect(server):
           elif (remoteNumber > server.listRoundNum[j - server.minNum]):
             server.listRoundNum[j - server.minNum] = remoteNumber
             server.listPendingValue[j - server.minNum] = remotePending
-  """
   tDone = client_thread('tDone' + str(server.number), threadedDone, server)
   tDone.start()
-  """
 def threadedServerForever(server):
   server.serve_forever()
 def threadedStart(server, seq):
@@ -158,13 +156,6 @@ def threadedStart(server, seq):
         continue
       # print "Decided to connect to server " + str(i)
       try:
-        """
-        returnVal = server.listServer[i].response_to_proposed_lead(seq, roundNum)
-        result = returnVal[0]
-        prePropose = returnVal[1]
-        returnRoundNum = returnVal[2]
-        individualMin = returnVal[3]
-        """
         result, prePropose, returnRoundNum, individualMin = server.listServer[i].response_to_proposed_lead(seq, roundNum)
       except Exception, e:
         # print "Exception returned from server " + str(i)
@@ -176,7 +167,6 @@ def threadedStart(server, seq):
       #   print "Error code: %d" % err.errcode
       #   print "Error message: %s" % err.errmsg
       # print "Successfully got reply from server " + str(i)
-      """
       if (individualMin > server.listKnownMin[i]):  # some remote server sends his Done message
         # print "Updating local min list"
         if server.listKnownMin[i] is server.minNum:
@@ -185,7 +175,6 @@ def threadedStart(server, seq):
           tDone.start()
         else:
           server.listKnownMin[i] = individualMin
-      """
       if result is True:
         trueReply += 1
         if (returnRoundNum > highestPrevRound):
@@ -254,7 +243,6 @@ def threadedStart(server, seq):
       continue  # in case remote server is unreachable, continue
     if result is True:
       trueReply += 1
-    """
     if (individualMin > server.listKnownMin[i]):  # some remote server sends his Done message
       # On a second thought I think no lock is fine here
       with server.seqLock:
@@ -264,7 +252,6 @@ def threadedStart(server, seq):
           tDone.start()
         else:
           server.listKnownMin[i] = individualMin
-    """
   if ((trueReply + 1) * 2 <= server.amount or server.alive == False):  
     with server.seqLock.read_access:
       server.listPendingToLead[seq - server.minNum] = 0
@@ -393,7 +380,7 @@ class Paxos:
     tResurrect.start()
     if wait_bool is True:
       tResurrect.join()
-  """
+ 
   def done(self, seq):
     if (self.number == -1):
       return False
@@ -405,7 +392,6 @@ class Paxos:
       else:
         self.listKnownMin[self.number] = seq
     return True
-  """
   def status(self, seq):
     with self.seqLock.read_access:
       if (seq < self.minNum) :

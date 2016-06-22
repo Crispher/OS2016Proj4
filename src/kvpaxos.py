@@ -18,7 +18,7 @@ class _RPCFuncs:  # Reused LPH's structure
   def test(self):
     return True
   def response_to_proposed_lead(self, seq, roundNum):  # Stage 1b in the slides
-    print 'server numbered ' + str(self.server.number) + ' responding to proposed lead'
+    # print 'server numbered ' + str(self.server.number) + ' responding to proposed lead'
     if self.server.alive is False:
       return False, "", -3, -1
     with self.server.seqLock:
@@ -46,6 +46,8 @@ class _RPCFuncs:  # Reused LPH's structure
       #print 'under investigation is' + str(seq-self.server.minNum)
       returnRoundNum = self.server.listRoundNum[seq-self.server.minNum]
       self.server.listRoundNum[seq-self.server.minNum] = roundNum
+      if self.server.listPendingValue[seq-self.server.minNum] is "":
+        returnRoundNum = -1
       #print "exit position 4"
       return True, self.server.listPendingValue[seq-self.server.minNum], returnRoundNum, self.server.listKnownMin[self.server.number]
   def response_to_proposed_value(self, seq, roundNum, proposedVal): # Stage 2b in the slides
@@ -107,7 +109,8 @@ def threadedResurrect(server):
       remoteMin, remoteMax = server.listServer[i].response_to_resurrection_query()
     except Exception, e:
       continue
-    server.listKnownMin[i] = remoteMin
+    if remoteMin > server.listKnownMin[i]:
+      server.listKnownMin[i] = remoteMin
     with server.seqLock:
       while (server.minNum + len(server.listValue) - 1 < remoteMax):
         server.listValue.append("")
@@ -115,6 +118,8 @@ def threadedResurrect(server):
         server.listPendingValue.append("")
         server.listPendingToLead.append(0)
       for j in range(remoteMin, remoteMax + 1):
+        if j < server.minNum:
+          continue
         if server.listValue[j - server.minNum] is "":
           remoteResult, remotePending, remoteNumber = server.listServer[i].response_to_resurrection_result_query(j)
           if (remoteResult != ""):
@@ -143,7 +148,7 @@ def threadedStart(server, seq):
       if (i == server.number):
         continue
       """  # not necessary, since this is done in checkListServer part
-      print "Trying to connect to server " + str(i)
+      # print "Trying to connect to server " + str(i)
       if server.checkListServer(i) is False:
         continue
       # print "Decided to connect to server " + str(i)
@@ -221,6 +226,8 @@ def threadedStart(server, seq):
       proposedVal = server.listPendingValue[seq - server.minNum]
     server.listRoundNum[seq - server.minNum] = roundNum
   trueReply = 0
+  if proposedVal is "":
+    assert False, "not reached"
   for i in range(0, server.amount):
     """
     if (i == server.number):
@@ -292,12 +299,12 @@ class Paxos:
       try:
         self.listServer[num] = xmlrpclib.ServerProxy('http://' + self.listServerAddress[num] + ':' + str(RPC_PORT))
         #log('[INFO] connect to RPC server')
-        print 'server numbered ' + str(self.number) + ' successfully connected to server numbered ' + str(num)
+        # print 'server numbered ' + str(self.number) + ' successfully connected to server numbered ' + str(num)
         return True
       except Exception, e:
         self.listServer[num] = None
         #log('[ERROR] fail to connect to RPC server', e)
-        print 'server numbered ' + str(self.number) + ' fails to connect to server numbered ' + str(num)
+        # print 'server numbered ' + str(self.number) + ' fails to connect to server numbered ' + str(num)
         return False
     else:
       return True
@@ -397,10 +404,8 @@ class Paxos:
         return True, None
       if (seq - self.minNum >= len(self.listValue)) :
         return False, '1'
-        #return False, None
       if (self.listValue[seq - self.minNum] == "") :
         return False, '2'
-        #return False, None
       else:
         return True, self.listValue[seq - self.minNum]
   class RequestHandler(SimpleXMLRPCRequestHandler):

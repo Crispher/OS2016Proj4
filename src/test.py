@@ -1,9 +1,10 @@
 import random
 import string
 import threading
+from threading import Lock
 from urllib import quote
 from httplib import HTTPConnection
-
+import time
 from util import *
 from store import Store
 
@@ -73,7 +74,7 @@ def paxos_resurrect(http_conn):
     http_conn.getresponse()
     return
 
-http_conn = HTTPConnection(HOST, PORT)
+
 # print dump(http_conn)
 # print countkey(http_conn)['result']
 # print shutdown(http_conn)
@@ -84,129 +85,138 @@ http_conn = HTTPConnection(HOST, PORT)
 conn_list = [HTTPConnection(host, PORT) for host in HOSTS_LIST]
 
 def multiput(func, *args):
-  return [func(c, *args) for c in conn_list]
+  while True:
+    try:
+      connl = [HTTPConnection(host, PORT) for host in HOSTS_LIST]
+      break
+    except Exception, e:
+      print e
+  ans = func(connl[0], *args)
+  for c in connl:
+    if func(c, *args) == ans:
+      continue
+    assert(False)
+  for c in connl:
+    c.close()
+  return ans
 
 import random
 class _R():
   def __init__(self):
     self._ID = -1
+    self.lock = Lock()
   def get_id(self):
-    self._ID += 1
-    return self._ID
+    with self.lock:
+      self._ID += 1
+      return self._ID
   def get_random_host(self):
-    return conn_list[random.randrange(n_hosts)]
+    return HTTPConnection(HOSTS_LIST[random.randrange(n_hosts)], PORT)
 R = _R()
 
-print multiput(insert, R.get_id(), 'a', '1')
-paxos_kill(conn_list[2])
-# print get(R.get_random_host(), R.get_id(), 'a')
-print get(conn_list[1], R.get_id(), 'a')
-paxos_resurrect(conn_list[2])
-# print delete(conn_list[1], R.get_id(), 'a')
-print multiput(delete, R.get_id(), 'a')
+# print multiput(insert, R.get_id(), 'a', '1')
+# paxos_kill(conn_list[2])
+# # print get(R.get_random_host(), R.get_id(), 'a')
+# print get(conn_list[1], R.get_id(), 'a')
+# print 'resu-'
+# paxos_resurrect(conn_list[2])
+# print 'rrect'
+# # print delete(conn_list[1], R.get_id(), 'a')
+# print multiput(delete, R.get_id(), 'a')
 
 
+class client_thread(threading.Thread):
+    def __init__(self, name, run_func, *args):
+        threading.Thread.__init__(self)
+        self.name = name
+        self.run_func = run_func
+        self.args = args
+    def run(self):
+        result = self.run_func(*self.args)
+        self.result = result
 
-def check_return(msg, success, value=None):
-  err_flag = success != msg.get('success', None) or \
-      (value is not None and value != msg.get('value', None))
-  if err_flag:
-    log('[ERROR] msg', msg, success, value)
-  return not err_flag
+def test2(num = 0, amount = 1000):
+    # serial pressure test
+    succ = 1
+    insert_time = []
+    insert_time_total = 0
+    insert_success = 0
+    get_time = []
+    get_time_total = 0
+    for i in range(1+num,amount+num+1):
+        t = time.time()
+        r = multiput(insert, R.get_id(), str(i), str(i+10000))
+        elapsed_t = time.time() - t
+        if r['success'] == 'false':
+            succ = 0
+        else:
+            insert_success += 1
+        insert_time.append(elapsed_t * 1000)
+        insert_time_total = insert_time_total + elapsed_t * 1000
+    for i in range(1+num,amount+num+1):
+        r = multiput(update, R.get_id(), str(i), str(i+50000))
+        if r['success'] == 'false':
+            succ = 0
+    for i in range(1+num,amount+num+1):
+        t = time.time()
+        r = multiput(get, R.get_id(), str(i))
+        elapsed_t = time.time() - t
+        if r['success'] == 'false':
+            succ = 0
+        get_time.append(elapsed_t * 1000)
+        get_time_total = get_time_total + elapsed_t * 1000
+    for i in range(1+num,amount+num+1):
+        r = multiput(delete, R.get_id(), str(i))
+        if r['success'] == 'false':
+            succ = 0
+    r = countkey(R.get_random_host())
+    insert_time.sort()
+    get_time.sort()
+    return succ, insert_success, insert_time_total / amount, get_time_total / amount, insert_time[amount // 5], get_time[amount // 5], insert_time[amount // 2], get_time[amount // 2], insert_time[(amount * 7) // 10], get_time[(amount * 7) // 10], insert_time[(amount * 9) // 10], get_time[(amount * 9) // 10]
+    
 
+def test():
+    test_num = 55
+    count_1 = 0
+    mutex = Lock()
+    def single_create(num = 0):
+        c = R.get_random_host()
+        r = multiput(insert, R.get_id(), str(num), '1')
+        # r = insert(c, R.get_id(), str(num), '1')
+        c.close()
 
+        if r['success'] == 'true':
+            return 1
+        else:
+            return 0
+    list1 = []
 
-
-class Test:
-
-  def __init__(self, store):
-    self.store = store
-
-  def _random_string(self):
-    return ''.join(random.choice(string.ascii_uppercase + string.digits)
-                   for _ in range(4))
-
-  def _get_keys_length(self):
-    keys = self.store.store_dict.keys()
-    return keys, len(keys)
-
-  def _get_key(self, is_random=False):
-    if is_random:
-      return self._random_string(), self._random_string()
+    r = delete(R.get_random_host(), R.get_id(), str(test_num))
+    for i in range(1,10):
+        list1.append(client_thread('t' + str(i), single_create, test_num))
+    for i in range(1,10):
+        list1[i - 1].start()
+    for i in range(1,10):
+        list1[i - 1].join()
+        count_1 = count_1 + list1[i-1].result
+    r = delete(R.get_random_host(), R.get_id(), str(test_num))
+    
+    t2 = client_thread('test2', test2, 0, 30)
+    t2.start()
+    t2.join()
+    # print 'hhh'
+    t2succ, iss, ia, ga, i2, g2, i5, g5, i7, g7, i9, g9 = t2.result
+    
+    if count_1 == 1 and t2succ == 1:
+        print("Result:success")
     else:
-      keys, length = self._get_keys_length()
-      return keys[random.randint(0, length - 1)] if length > 1 \
-          else None, self._random_string()
-
-  def decorator(func):
-    def magic(self, id):
-      k, v = self._get_key()
-      flag, key, value = func(self, k, v)
-      if flag == '':
-        pass
-      elif flag:
-        log('[INFO]', '[' + str(id) + ']', func.__name__, '\t', key, value)
-      elif not flag:
-        log('[INFO]', '[' + str(id) + ']','\t', 'failed', '\t', key, value)
-    return magic
-
-  @decorator
-  def test_insert(self, key, value):
-    key, value = self._get_key(is_random=True)
-    success, _ = self.store.insert(key, value)
-    msg = insert(get_random_host(), get_id(), key, value)
-    return check_return(msg, str(success).lower()), key, value
-
-  @decorator
-  def test_update(self, key, value):
-    if key is None:
-      return '', '', ''
-
-    success, _ = self.store.update(key, value)
-    msg = update(get_random_host(), get_id(), key, value)
-    return check_return(msg, str(success).lower()), key, value
-
-  @decorator
-  def test_delete(self, key, value):
-    if key is None:
-      return '', '', ''
-
-    success, value = self.store.delete(key)
-    # msg = delete(get_random_host(), get_id(), key)
-    msg = multiput(delete, get_id(), key)
-    return check_return(msg, str(success).lower(), value), key, value
-
-  @decorator
-  def test_get(self, key, value):
-    if key is None:
-      return '', '', ''
-
-    success, value = self.store.get(key)
-    msg = get(get_random_host(), get_id(), key)
-    return check_return(msg, str(success).lower(), value), key, value
+        print("Result:fail")
+    print("Insertion: " + str(iss) + " / 1000")
+    print("Average latency (ms): " + str(ia) + " / " + str(ga))
+    print("Percentile latency:" + str(i2) + " / " + str(g2) + ", " + str(i5) + " / " + str(g5) + ", " + str(i7) + " / " + str(g7) + ", " + str(i9) + " / " + str(g9))
 
 
-def single_test(store, id, length):
-  t = Test(store)
-  funcs = [t.test_insert, t.test_update, t.test_delete, t.test_get]
-  for i in xrange(length):
-    funcs[random.randint(0, 3)](i)
-
-
-# public_store = Store()
-
-
-# ps = [threading.Thread(target=single_test, args=(public_store, i, 10))
-#         for i in xrange(0, 30)]
-# for p in ps:
-#   p.start()
-#   p.join()
-# print public_store.store_dict
-
-# http_conn.close()
-
-
-
-# for host in HOSTS_LIST:
-#   http_conn = HTTPConnection(host, PORT)
-#   shutdown(http_conn)
+import os
+def start_server(arg):
+    os.system('bin/')
+t3 = client_thread('t3',test)
+t3.start();

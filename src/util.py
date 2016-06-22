@@ -14,9 +14,9 @@ if len(sys.argv) > 1:
 n_hosts = len(data)
 HOSTS_LIST = [str(data['n' + ('%02i'%i)]) for i in range(1, n_hosts+1)]
 
-MAX_SLEEP_TIME = 1
+MAX_SLEEP_TIME = 0.005
 
-DEBUG = True
+DEBUG = False
 
 GET_PATH = '/kv/get'
 INSERT_PATH = '/kv/insert'

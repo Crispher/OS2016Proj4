@@ -66,12 +66,12 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     # get the returned value from paxos protocol
     while True:
       seq = self.kv_server.px.max() + 1
-      print seq
+      # print seq
       self.kv_server.px.start(seq, op.encode())
       sleep_time = 0.01
       decided, op_value = self.kv_server.px.status(seq)
       while not decided:
-        print 'waiting for decision'
+        # print 'waiting for decision'
         time.sleep(sleep_time)
         sleep_time = max(sleep_time*2, MAX_SLEEP_TIME)
         decided, op_value = self.kv_server.px.status(seq)
@@ -108,9 +108,9 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
           self.kv_server.px.kill()
           self.wfile.write('{"result":"preparing to kill"}')
         elif self.path == PAXOS_RESURRECT_PATH:
-          print 'resu'
+          # print 'resu'
           self.kv_server.px.resurrect()
-          print 'rrect'
+          # print 'rrect'
           self.wfile.write('{"result":"preparing to resurrect"}')
         else:
           assert False
@@ -134,10 +134,15 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
   def do_POST(self):
     self.do_HEAD()
     try:
+      with open(str(ME) + 'rlog.txt', 'a') as file:
+        file.write(self.path + '\n')#
       length = int(self.headers.getheader('content-length'))
       field_data = self.rfile.read(length)
       fields = parse_qs(field_data)
       key, value, requestid = fields.get('key')[0], fields.get('value', [None])[0], int(fields.get('requestid')[0])
+      
+      with open(str(ME) + 'rlog.txt', 'a') as file:
+        file.write(str(requestid) + ' '+ self.path + ' ' + key + ' ' + str(value) + '\n')
       if INSERT_PATH in self.path and value is not None:
         op = Operation(requestid, 'INSERT', key, value)
       elif UPDATE_PATH in self.path and value is not None:
@@ -159,6 +164,8 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         
 class KvPaxosServer:
   def __init__(self):
+    with open(str(ME) + 'log.txt', 'w') as file:
+      file.write('log:\n')
     self.px = Paxos.make(HOSTS_LIST, ME)
     self.http_server = BaseHTTPServer.HTTPServer(
         (HOST, int(PORT)), MyHTTPRequestHandler)
@@ -190,10 +197,10 @@ class KvPaxosServer:
   def maintainance(self):
     while self.keep_running:
       while self.px.max() < self.executed_paxos_no and self.keep_running:
-        print 'maintainance sleep'
+        # print 'maintainance sleep'
         time.sleep(MAX_SLEEP_TIME)
       if self.keep_running:
-        print 'maintainance execute', self.px.max(), self.executed_paxos_no
+        # print 'maintainance execute', self.px.max(), self.executed_paxos_no
         self.execute(self.executed_paxos_no, None)    
       
   
@@ -203,16 +210,15 @@ class KvPaxosServer:
     # catch up. this ensures that operations are executed in ascending order
     while self.executed_paxos_no < seq:
       time.sleep(MAX_SLEEP_TIME)
-    
+
     with self.lock:
-      print 'lock acquired ============================================================'
+      # print 'lock acquired ============================================================'
       # if seq < self.executed_paxos_no:
       #   # the operations is done by other threads already, check the log directly
       #   return operation_log[seq].return_value
       if self.processed_requestid.has_key(requestid):
         assert self.processed_requestid[requestid] < self.executed_paxos_no
         return self.operation_log[self.processed_requestid[requestid]].return_value
-      
       # this request has not been executed yet, or is being executed by maintainance thread.
       while True:
         # since not executed, it cannot be forgotten
@@ -220,7 +226,7 @@ class KvPaxosServer:
         if decided:
           break 
         else:
-          print 'waiting for decided value', seq
+          # print 'waiting for decided value', seq, op_jstr
           time.sleep(MAX_SLEEP_TIME)
       op = Operation.decode(op_jstr)
       assert decided
@@ -236,17 +242,15 @@ class KvPaxosServer:
         elif op.op_type == 'UPDATE':
           success, value = self.kvstore.update(op.key, op.value)
       self.executed_paxos_no += 1
-      self.px.done(seq)
+      # self.px.done(seq)
       op.done((success, value))
       self.operation_log += [op]
-      # print self.processed_requestid, seq, op.requestid
       assert (not self.processed_requestid.has_key(op.requestid)) or requestid is None
       if not self.processed_requestid.has_key(op.requestid):
         self.processed_requestid[op.requestid] = seq
-      print 'lock released ============================================================'
       # print self.processed_requestid
-      print op.encode()
-      # print [op.encode() for op in self.operation_log]
+        with open(str(ME) + 'log.txt', 'a') as file:
+          file.write(op.encode() + '\n')# + str(self.processed_requestid) + '\n')
       return success, value
   
   def handle_shutdown(self):

@@ -83,7 +83,7 @@ def threadedDone(server):
         del server.listPendingToLead[0]
 def threadedMaintainence(server):
   while (True):
-    time.sleep(5)  # number of seconds slept over next check, I randomly picked "2" without further examination. In reality, this number should depend on the number of servers as well as network condition
+    time.sleep(2)  # number of seconds slept over next check, I randomly picked "2" without further examination. In reality, this number should depend on the number of servers as well as network condition
     if server.alive is False:
       continue
     with server.seqLock:
@@ -312,8 +312,8 @@ class Paxos:
     tServerForever.start()
     return True
   def start(self, seq, value):
-    if self.alive is False:
-      return False
+    while self.alive is False:
+      time.sleep(2)# Modified at GY's request
     with self.seqLock:
       while (self.minNum + len(self.listValue) <= seq):
         self.listValue.append("")
@@ -356,7 +356,7 @@ class Paxos:
   def status(self, seq):
     with self.seqLock:
       if (seq < self.minNum) :
-        # return False, ""
+        # return False, ""	# Modified at GY's request
         return True, None
       if (seq - self.minNum >= len(self.listValue)) :
         return False, None

@@ -63,8 +63,6 @@ def shutdown(http_conn):
     http_conn.getresponse()
     return
 
-
-
 http_conn = HTTPConnection(HOST, PORT)
 # print dump(http_conn)
 # print countkey(http_conn)['result']
@@ -72,6 +70,28 @@ http_conn = HTTPConnection(HOST, PORT)
 
 # print insert(http_conn, 123, 'a', '1')
 # print get(http_conn, 456, 'a')
+
+conn_list = [HTTPConnection(host, PORT) for host in HOSTS_LIST]
+
+def multiput(func, *args):
+  return [func(c, *args) for c in conn_list]
+
+import random
+class _R():
+  def __init__(self):
+    self._ID = 0
+  def get_id(self):
+    self._ID += 1
+    return self._ID
+  def get_random_host(self):
+    return conn_list[random.randrange(n_hosts)]
+R = _R()
+
+print multiput(insert, R.get_id(), 'a', '1')
+# print get(R.get_random_host(), R.get_id(), 'a')
+print multiput(delete, R.get_id(), 'a')
+
+
 
 def check_return(msg, success, value=None):
   err_flag = success != msg.get('success', None) or \
@@ -85,10 +105,8 @@ def check_return(msg, success, value=None):
 
 class Test:
 
-  def __init__(self, store, http_conn, requestid):
+  def __init__(self, store):
     self.store = store
-    self.http_conn = http_conn
-    self.requestid = requestid
 
   def _random_string(self):
     return ''.join(random.choice(string.ascii_uppercase + string.digits)
@@ -119,59 +137,62 @@ class Test:
     return magic
 
   @decorator
-  def test_insert(self, key, value, id=None):
+  def test_insert(self, key, value):
     key, value = self._get_key(is_random=True)
     success, _ = self.store.insert(key, value)
-    msg = insert(self.http_conn, self.requestid, key, value)
+    msg = insert(get_random_host(), get_id(), key, value)
     return check_return(msg, str(success).lower()), key, value
 
   @decorator
-  def test_update(self, key, value, id=None):
+  def test_update(self, key, value):
     if key is None:
       return '', '', ''
 
     success, _ = self.store.update(key, value)
-    msg = update(self.http_conn, self.requestid, key, value)
+    msg = update(get_random_host(), get_id(), key, value)
     return check_return(msg, str(success).lower()), key, value
 
   @decorator
-  def test_delete(self, key, value, id=None):
+  def test_delete(self, key, value):
     if key is None:
       return '', '', ''
 
     success, value = self.store.delete(key)
-    msg = delete(self.http_conn, self.requestid, key)
+    # msg = delete(get_random_host(), get_id(), key)
+    msg = multiput(delete, get_id(), key)
     return check_return(msg, str(success).lower(), value), key, value
 
   @decorator
-  def test_get(self, key, value, id=None):
+  def test_get(self, key, value):
     if key is None:
       return '', '', ''
 
     success, value = self.store.get(key)
-    msg = get(self.http_conn, self.requestid, key)
+    msg = get(get_random_host(), get_id(), key)
     return check_return(msg, str(success).lower(), value), key, value
 
 
 def single_test(store, id, length):
-  t = Test(store, http_conn, id)
+  t = Test(store)
   funcs = [t.test_insert, t.test_update, t.test_delete, t.test_get]
   for i in xrange(length):
     funcs[random.randint(0, 3)](i)
 
 
-public_store = Store()
+# public_store = Store()
 
 
-ps = [threading.Thread(target=single_test, args=(public_store, i, 10))
-        for i in xrange(0, 30)]
-for p in ps:
-  p.start()
-  p.join()
-print public_store.store_dict
+# ps = [threading.Thread(target=single_test, args=(public_store, i, 10))
+#         for i in xrange(0, 30)]
+# for p in ps:
+#   p.start()
+#   p.join()
+# print public_store.store_dict
 
-http_conn.close()
+# http_conn.close()
 
-for host in HOSTS_LIST:
-  http_conn = HTTPConnection(host, PORT)
-  shutdown(http_conn)
+
+
+# for host in HOSTS_LIST:
+#   http_conn = HTTPConnection(host, PORT)
+#   shutdown(http_conn)

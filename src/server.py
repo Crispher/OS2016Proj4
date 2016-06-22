@@ -220,23 +220,28 @@ class KvPaxosServer:
           time.sleep(1)
       op = Operation.decode(op_jstr)
       assert decided
-      if op.op_type == 'GET':
-        success, value = self.kvstore.get(op.key)
-      elif op.op_type == 'INSERT':
-        success, value = self.kvstore.insert(op.key, op.value)
-      elif op.op_type == 'DELETE':
-        success, value = self.kvstore.delete(op.key)
-      elif op.op_type == 'UPDATE':
-        success, value = self.kvstore.update(op.key, op.value)
+      if self.processed_requestid.has_key(op.requestid):
+        success, value = self.operation_log[self.processed_requestid[op.requestid]].return_value
+      else:
+        if op.op_type == 'GET':
+          success, value = self.kvstore.get(op.key)
+        elif op.op_type == 'INSERT':
+          success, value = self.kvstore.insert(op.key, op.value)
+        elif op.op_type == 'DELETE':
+          success, value = self.kvstore.delete(op.key)
+        elif op.op_type == 'UPDATE':
+          success, value = self.kvstore.update(op.key, op.value)
       self.executed_paxos_no += 1
       self.px.done(seq)
       op.done((success, value))
       self.operation_log += [op]
       print self.processed_requestid, seq, op.requestid
       assert (not self.processed_requestid.has_key(op.requestid)) or requestid is None
-      self.processed_requestid[op.requestid] = seq
+      if not self.processed_requestid.has_key(op.requestid):
+        self.processed_requestid[op.requestid] = seq
       print 'lock released ============================================================'
       print self.processed_requestid
+      # print [op.encode() for op in self.operation_log]
       return success, value
   
   def handle_shutdown(self):

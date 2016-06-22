@@ -69,10 +69,11 @@ class _RPCFuncs:  # Reused LPH's structure
   def response_to_resurrection_query(self):
     return self.server.minNum, self.server.minNum + len(self.server.listValue) - 1
   def response_to_resurrection_result_query(self, num):
+    # Add more information in response, so bugs should appear less often (or never)
     if (num - self.server.minNum >= len(self.server.listValue) or num < self.server.minNum):
-      return ""
+      return "", "", -1
     else:
-      return self.server.listValue[num - self.server.minNum]
+      return self.server.listValue[num - self.server.minNum], self.server.listPendingValue[num - self.server.minNum], self.server.listRoundNum[num - self.server.minNum]
 def threadedDone(server):
   if server.alive is False:
     return
@@ -115,9 +116,12 @@ def threadedResurrect(server):
         server.listPendingToLead.append(0)
       for j in range(remoteMin, remoteMax + 1):
         if server.listValue[j - server.minNum] is "":
-          remoteAnswer = server.listServer[i].response_to_resurrection_result_query(j)
-          if (remoteAnswer != ""):
+          remoteResult, remotePending, remoteNumber = server.listServer[i].response_to_resurrection_result_query(j)
+          if (remoteResult != ""):
             server.listValue[j - server.minNum] = remoteAnswer
+          elif (remoteNumber > server.listRoundNum[j - server.minNum]):
+            server.listRoundNum[j - server.minNum] = remoteNumber
+            server.listPendingValue[j - server.minNum] = remotePending
   tDone = client_thread('tDone' + str(server.number), threadedDone, server)
   tDone.start()
 def threadedServerForever(server):
@@ -365,7 +369,7 @@ class Paxos:
       return self.minNum + len(self.listValue) - 1
   def kill(self):
     self.alive = False
-  def resurrect(self, wait_bool = False):
+  def resurrect(self, wait_bool = True):    # preset bool as true so that bugs should appear less often
     self.alive = True
     tResurrect = client_thread('tResurrect' + str(self.number), threadedResurrect, self)
     tResurrect.start()

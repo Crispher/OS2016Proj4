@@ -85,18 +85,20 @@ def paxos_resurrect(http_conn):
 conn_list = [HTTPConnection(host, PORT) for host in HOSTS_LIST]
 
 def multiput(func, *args):
-  while True:
-    try:
-      connl = [HTTPConnection(host, PORT) for host in HOSTS_LIST]
-      break
-    except Exception, e:
-      print e
-  ans = func(connl[0], *args)
-  for c in connl:
+  c1 = []
+  for host in HOSTS_LIST:
+    while True:
+      try:
+        c1 += [HTTPConnection(host, PORT)]
+        break
+      except:
+        print e
+  ans = func(c1[0], *args)
+  for c in c1:
     if func(c, *args) == ans:
       continue
     assert(False)
-  for c in connl:
+  for c in c1:
     c.close()
   return ans
 
@@ -200,7 +202,7 @@ def test():
         count_1 = count_1 + list1[i-1].result
     r = delete(R.get_random_host(), R.get_id(), str(test_num))
     
-    t2 = client_thread('test2', test2, 0, 30)
+    t2 = client_thread('test2', test2, 0, 70)
     t2.start()
     t2.join()
     # print 'hhh'

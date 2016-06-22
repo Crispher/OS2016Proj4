@@ -61,10 +61,8 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
   '''
   def paxos_consensus(self, op):
     # get the returned value from paxos protocol
-    print 'iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii'
     while True:
       seq = self.kv_server.px.max() + 1
-      print 'sssssssssstttttttttttttaaaaaaaaaaaarrrrrrrrrrrrrrrrttttttttttttt', seq
       assert op is not None
       self.kv_server.px.start(seq, op.encode())
       sleep_time = 0.01
@@ -73,9 +71,13 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         time.sleep(sleep_time)
         sleep_time = max(sleep_time*2, 1)
         decided, op_value = self.kv_server.px.status(seq)
-      if Operation.decode(op_value) == op:
-        print 'break'
+      if op_value is not None:
+        if Operation.decode(op_value) == op:
+          break
+      elif self.kv_server.processed_requestid.has_key(op.requestid):
         break
+      else:
+        assert False
     return seq
     
   def do_HEAD(self):
@@ -104,32 +106,27 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         log('a')
         return
       else:
-        print self.path[8:]
         args = parse_qs(self.path[8:])
-        print 'qqq'
-        key, requestid = args['key'][0], args['requestid'][0]
+        key, requestid = args['key'][0], int(args['requestid'][0])
         op = Operation(requestid, 'GET', key)
         assert (GET_PATH in self.path)
         # wrap an operation and call paxos 
         seq = self.paxos_consensus(op)
-        print 'seq=', seq
-        success, value = self.kv_server.execute(seq)
+        success, value = self.kv_server.execute(seq, requestid)
         self.wfile.write(generate_response(success, value))
         return
     except Exception, e:
-      print 'errrr'
       self._error_handle(e)
       return
     assert False
     
   def do_POST(self):
     self.do_HEAD()
-    # self.wfile.write('{ \"result\" : \"not yet implemented\" }')
     try:
       length = int(self.headers.getheader('content-length'))
       field_data = self.rfile.read(length)
       fields = parse_qs(field_data)
-      key, value, requestid = fields.get('key')[0], fields.get('value', [None])[0], fields.get('requestid')[0]
+      key, value, requestid = fields.get('key')[0], fields.get('value', [None])[0], int(fields.get('requestid')[0])
       if INSERT_PATH in self.path and value is not None:
         op = Operation(requestid, 'INSERT', key, value)
       elif UPDATE_PATH in self.path and value is not None:
@@ -138,10 +135,8 @@ class MyHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         op = Operation(requestid, 'DELETE', key)
       else:
         assert False
-      print 'aaa'
       seq = self.paxos_consensus(op)
-      print 'seq=', seq, 'decided', self.kv_server.px.status(seq)[0]
-      success, value = self.kv_server.execute(seq)
+      success, value = self.kv_server.execute(seq, requestid)
       print success, value
       self.wfile.write(generate_response(success, value))
       
@@ -166,9 +161,12 @@ class KvPaxosServer:
     self.executed_paxos_no = 0
     # contains all executed operations and their return values
     self.operation_log = []
+    self.processed_requestid = dict()
     
   def start(self):
     log("HTTP Server Starts - %s:%s" % (HOST, PORT))
+    maintainance_thread = Thread(target=self.maintainance, name='maintainance')
+    maintainance_thread.start()
     try:
       while self.keep_running:
         self.http_server.handle_request()
@@ -177,20 +175,34 @@ class KvPaxosServer:
       sys.exit(0)
     print 'exits'
     self.http_server.server_close()
+    self.http_server.shutdown()
     sys.exit(0)
   
+  def maintainance(self):
+    while self.keep_running:
+      while self.px.max() < self.executed_paxos_no:
+        time.sleep(1)
+      self.execute(self.executed_paxos_no, None)
+        
+      
+  
   ''' this function is only called by the handler class'''
-  def execute(self, seq):
+  def execute(self, seq, requestid):
       
     # catch up. this ensures that operations are executed in ascending order
     while self.executed_paxos_no < seq:
-      self.execute(self.executed_paxos_no)
-    
+      time.sleep(1)
     
     with self.lock:
-      if seq < self.executed_paxos_no:
-        # the operations is done by other threads already, check the log directly
-        return operation_log[seq].return_value
+      print 'lock acquired ============================================================'
+      print self.processed_requestid, seq, requestid
+      # if seq < self.executed_paxos_no:
+      #   # the operations is done by other threads already, check the log directly
+      #   return operation_log[seq].return_value
+      if self.processed_requestid.has_key(requestid):
+        print 'a', self.processed_requestid[requestid], self.executed_paxos_no
+        assert self.processed_requestid[requestid] < self.executed_paxos_no
+        return self.operation_log[self.processed_requestid[requestid]].return_value
       while True:
         decided, op_jstr = self.px.status(seq)
         print seq, decided
@@ -212,26 +224,13 @@ class KvPaxosServer:
       self.px.done(seq)
       op.done((success, value))
       self.operation_log += [op]
+      print self.processed_requestid, seq, op.requestid
+      assert (not self.processed_requestid.has_key(op.requestid)) or requestid is None
+      self.processed_requestid[op.requestid] = seq
+      print 'lock released ============================================================'
+      print self.processed_requestid
       return success, value
       
-
-  def handle_count(self):
-    if self.store is None:
-      self._update_store()
-      if self.store is None:
-        return False, "backup failed"
-    return self.store.countkey()
-
-  def handle_dump(self):
-    if self.store is None:
-      self._update_store()
-
-    return self.store.dump()
-
-  def handle_shutdown(self):
-    self.keep_running = False
-    
-
   
 kv_paxos_server = KvPaxosServer()
 kv_paxos_server.start()

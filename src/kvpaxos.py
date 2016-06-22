@@ -358,11 +358,12 @@ class Paxos:
   def status(self, seq):
     with self.seqLock:
       if (seq < self.minNum) :
-        return False, ""
+        # return False, ""
+        return True, None
       if (seq - self.minNum >= len(self.listValue)) :
-        return False, ""
+        return False, None
       if (self.listValue[seq - self.minNum] == "") :
-        return False, ""
+        return False, None
       else:
         return True, self.listValue[seq - self.minNum]
   class RequestHandler(SimpleXMLRPCRequestHandler):
